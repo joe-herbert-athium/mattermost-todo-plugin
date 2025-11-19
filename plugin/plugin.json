@@ -1,0 +1,20 @@
+{
+  "id": "com.mattermost.channel-todo",
+  "name": "Channel Todo List",
+  "description": "Adds a todo list for each channel",
+  "version": "1.0.0",
+  "min_server_version": "5.20.0",
+  "server": {
+    "executables": {
+      "linux-amd64": "server/dist/plugin-linux-amd64",
+      "darwin-arm64": "server/dist/plugin-darwin-arm64"
+    }
+  },
+  "webapp": {
+    "bundle_path": "webapp/dist/main.js"
+  },
+  "settings_schema": {
+    "header": "Channel Todo List Settings",
+    "settings": []
+  }
+}
