@@ -84,6 +84,8 @@ class TodoSidebar extends React.Component<any> {
         filterCompletion: 'all' as 'all' | 'complete' | 'incomplete',
         currentUserId: '',
         _lastChannelId: '',
+        deleteGroupWarningShown: false,
+        groupToDelete: null as { id: string, name: string, taskCount: number } | null,
     };
 
     adjustOpacity = (foreground: string, background: string, opacity: number) => {
@@ -108,6 +110,7 @@ class TodoSidebar extends React.Component<any> {
 
     componentDidMount() {
         console.log('TodoSidebar mounted with props:', this.props);
+        this.loadFilterSettings();
         this.loadCurrentUser();
         this.loadTodos();
         this.loadChannelMembers();
@@ -146,6 +149,35 @@ class TodoSidebar extends React.Component<any> {
             props.channel?.id ||
             (window as any).store?.getState()?.entities?.channels?.currentChannelId;
     }
+
+    loadFilterSettings = () => {
+        try {
+            const savedFilters = localStorage.getItem('mattermost-todo-filters');
+            if (savedFilters) {
+                const filters = JSON.parse(savedFilters);
+                this.setState({
+                    filterMyTasks: filters.filterMyTasks ?? false,
+                    filterCompletion: filters.filterCompletion ?? 'all',
+                    showFilters: filters.showFilters ?? false
+                });
+            }
+        } catch (error) {
+            console.error('Error loading filter settings:', error);
+        }
+    };
+
+    saveFilterSettings = () => {
+        try {
+            const filters = {
+                filterMyTasks: this.state.filterMyTasks,
+                filterCompletion: this.state.filterCompletion,
+                showFilters: this.state.showFilters
+            };
+            localStorage.setItem('mattermost-todo-filters', JSON.stringify(filters));
+        } catch (error) {
+            console.error('Error saving filter settings:', error);
+        }
+    };
 
     loadCurrentUser = async () => {
         try {
@@ -324,17 +356,60 @@ class TodoSidebar extends React.Component<any> {
         }
     };
 
+    confirmDeleteGroup = (groupId: string) => {
+        const group = this.state.groups.find(g => g.id === groupId);
+        if (!group) return;
+
+        const tasksInGroup = this.state.tasks.filter(t => t.group_id === groupId);
+        const taskCount = tasksInGroup.length;
+
+        const dontWarnAgain = localStorage.getItem('mattermost-todo-dont-warn-delete-group') === 'true';
+
+        if (dontWarnAgain || taskCount === 0) {
+            this.deleteGroup(groupId);
+        } else {
+            this.setState({
+                deleteGroupWarningShown: true,
+                groupToDelete: { id: groupId, name: group.name, taskCount }
+            });
+        }
+    };
+
     deleteGroup = async (groupId: string) => {
         const channelId = this.getChannelId();
         if (!channelId) return;
 
         try {
+            // Delete all tasks in the group
+            const tasksInGroup = this.state.tasks.filter(t => t.group_id === groupId);
+            for (const task of tasksInGroup) {
+                await fetch(`/plugins/com.mattermost.channel-todo/api/v1/todos?channel_id=${channelId}&id=${task.id}`, {
+                    method: 'DELETE'
+                });
+            }
+
+            // Delete the group
             await fetch(`/plugins/com.mattermost.channel-todo/api/v1/groups?channel_id=${channelId}&id=${groupId}`, {
                 method: 'DELETE'
             });
+
+            this.setState({ deleteGroupWarningShown: false, groupToDelete: null });
             this.loadTodos();
         } catch (error) {
             console.error('Error deleting group:', error);
+        }
+    };
+
+    cancelDeleteGroup = () => {
+        this.setState({ deleteGroupWarningShown: false, groupToDelete: null });
+    };
+
+    deleteGroupWithPreference = (dontWarnAgain: boolean) => {
+        if (dontWarnAgain) {
+            localStorage.setItem('mattermost-todo-dont-warn-delete-group', 'true');
+        }
+        if (this.state.groupToDelete) {
+            this.deleteGroup(this.state.groupToDelete.id);
         }
     };
 
@@ -653,7 +728,7 @@ class TodoSidebar extends React.Component<any> {
     };
 
     render() {
-        const { newTodoText, newGroupName, selectedGroup, channelMembers, showGroupForm, showTodoForm, showFilters, draggedTodo, filterMyTasks, filterCompletion, dragOverTodoId, dragOverPosition, draggedGroup, dragOverGroupId, dragOverGroupPosition } = this.state;
+        const { newTodoText, newGroupName, selectedGroup, channelMembers, showGroupForm, showTodoForm, showFilters, draggedTodo, filterMyTasks, filterCompletion, dragOverTodoId, dragOverPosition, draggedGroup, dragOverGroupId, dragOverGroupPosition, deleteGroupWarningShown, groupToDelete } = this.state;
 
         const theme = this.props.theme || {};
 
@@ -725,7 +800,7 @@ class TodoSidebar extends React.Component<any> {
                             {showGroupForm ? '− Add Group' : '+ Add Group'}
                         </button>
                         <button
-                            onClick={() => this.setState({ showFilters: !showFilters, showGroupForm: false, showTodoForm: false })}
+                            onClick={() => this.setState({ showFilters: !showFilters, showGroupForm: false, showTodoForm: false }, () => this.saveFilterSettings())}
                             style={{
                                 flex: 1,
                                 padding: '8px 12px',
@@ -754,7 +829,7 @@ class TodoSidebar extends React.Component<any> {
                                 overflow: 'hidden'
                             }}>
                                 <button
-                                    onClick={() => this.setState({ filterMyTasks: false })}
+                                    onClick={() => this.setState({ filterMyTasks: false }, () => this.saveFilterSettings())}
                                     style={{
                                         flex: 1,
                                         padding: '8px 16px',
@@ -772,7 +847,7 @@ class TodoSidebar extends React.Component<any> {
                                     All
                                 </button>
                                 <button
-                                    onClick={() => this.setState({ filterMyTasks: true })}
+                                    onClick={() => this.setState({ filterMyTasks: true }, () => this.saveFilterSettings())}
                                     style={{
                                         flex: 1,
                                         padding: '8px 16px',
@@ -798,7 +873,7 @@ class TodoSidebar extends React.Component<any> {
                                 overflow: 'hidden'
                             }}>
                                 <button
-                                    onClick={() => this.setState({ filterCompletion: 'all' })}
+                                    onClick={() => this.setState({ filterCompletion: 'all' }, () => this.saveFilterSettings())}
                                     style={{
                                         flex: 1,
                                         padding: '8px 16px',
@@ -816,7 +891,7 @@ class TodoSidebar extends React.Component<any> {
                                     All
                                 </button>
                                 <button
-                                    onClick={() => this.setState({ filterCompletion: 'complete' })}
+                                    onClick={() => this.setState({ filterCompletion: 'complete' }, () => this.saveFilterSettings())}
                                     style={{
                                         flex: 1,
                                         padding: '8px 16px',
@@ -834,7 +909,7 @@ class TodoSidebar extends React.Component<any> {
                                     Complete
                                 </button>
                                 <button
-                                    onClick={() => this.setState({ filterCompletion: 'incomplete' })}
+                                    onClick={() => this.setState({ filterCompletion: 'incomplete' }, () => this.saveFilterSettings())}
                                     style={{
                                         flex: 1,
                                         padding: '8px 16px',
@@ -963,7 +1038,7 @@ class TodoSidebar extends React.Component<any> {
                             onDelete={this.deleteTodo}
                             onToggleAssignee={this.toggleAssignee}
                             onUpdateText={this.updateTodoText}
-                            onDeleteGroup={() => this.deleteGroup(group.id)}
+                            onDeleteGroup={() => this.confirmDeleteGroup(group.id)}
                             onUpdateGroupName={this.updateGroupName}
                             onDragStart={this.handleDragStart}
                             onDragEnd={this.handleDragEnd}
@@ -1025,11 +1100,171 @@ class TodoSidebar extends React.Component<any> {
                             No tasks yet. Add one above to get started!
                         </div>
                     )}
+
+                    {this.state.tasks.length > 0 && sortedGroups.every(g => this.groupedTodos(g.id).length === 0) && this.groupedTodos(null).length === 0 && (
+                        <div style={{
+                            textAlign: 'center',
+                            padding: '40px 20px',
+                            color: subtleText
+                        }}>
+                            No tasks match the current filters.
+                        </div>
+                    )}
                 </div>
+
+                {deleteGroupWarningShown && groupToDelete && (
+                    <DeleteGroupWarning
+                        groupName={groupToDelete.name}
+                        taskCount={groupToDelete.taskCount}
+                        onConfirm={this.deleteGroupWithPreference}
+                        onCancel={this.cancelDeleteGroup}
+                        theme={theme}
+                    />
+                )}
             </div>
         );
     }
 }
+
+// Delete Group Warning Component
+const DeleteGroupWarning: React.FC<{
+    groupName: string;
+    taskCount: number;
+    onConfirm: (dontWarnAgain: boolean) => void;
+    onCancel: () => void;
+    theme: any;
+}> = ({ groupName, taskCount, onConfirm, onCancel, theme }) => {
+    const [dontWarnAgain, setDontWarnAgain] = React.useState(false);
+
+    const centerChannelBg = theme?.centerChannelBg || '#ffffff';
+    const centerChannelColor = theme?.centerChannelColor || '#333333';
+    const buttonBg = theme?.buttonBg || '#1c58d9';
+    const buttonColor = theme?.buttonColor || '#ffffff';
+    const errorTextColor = theme?.errorTextColor || '#dc3545';
+
+    const adjustOpacity = (foreground: string, background: string, opacity: number) => {
+        const hex2rgb = (hex: string) => {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : { r: 255, g: 255, b: 255 };
+        };
+
+        const fg = hex2rgb(foreground);
+        const bg = hex2rgb(background);
+
+        const r = Math.round(fg.r * opacity + bg.r * (1 - opacity));
+        const g = Math.round(fg.g * opacity + bg.g * (1 - opacity));
+        const b = Math.round(fg.b * opacity + bg.b * (1 - opacity));
+
+        return `rgb(${r}, ${g}, ${b})`;
+    };
+
+    const borderColor = adjustOpacity(centerChannelColor, centerChannelBg, 0.15);
+    const subtleBackground = adjustOpacity(centerChannelColor, centerChannelBg, 0.05);
+
+    return (
+        <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000
+        }}>
+            <div style={{
+                backgroundColor: centerChannelBg,
+                borderRadius: '8px',
+                padding: '24px',
+                maxWidth: '400px',
+                width: '90%',
+                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)',
+                border: `1px solid ${borderColor}`
+            }}>
+                <h3 style={{
+                    margin: '0 0 16px 0',
+                    fontSize: '18px',
+                    fontWeight: 600,
+                    color: errorTextColor
+                }}>
+                    Delete Group "{groupName}"?
+                </h3>
+                <p style={{
+                    margin: '0 0 20px 0',
+                    fontSize: '14px',
+                    lineHeight: '1.5',
+                    color: centerChannelColor
+                }}>
+                    This will permanently delete the group and all <strong>{taskCount}</strong> task{taskCount !== 1 ? 's' : ''} in it. This action cannot be undone.
+                </p>
+                <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    marginBottom: '20px',
+                    fontSize: '14px',
+                    color: centerChannelColor,
+                    cursor: 'pointer',
+                    userSelect: 'none'
+                }}>
+                    <input
+                        type="checkbox"
+                        checked={dontWarnAgain}
+                        onChange={(e) => setDontWarnAgain(e.target.checked)}
+                        style={{
+                            marginRight: '8px',
+                            cursor: 'pointer'
+                        }}
+                    />
+                    Don't warn me again
+                </label>
+                <div style={{
+                    display: 'flex',
+                    gap: '12px',
+                    justifyContent: 'flex-end'
+                }}>
+                    <button
+                        onClick={onCancel}
+                        style={{
+                            padding: '10px 20px',
+                            fontSize: '14px',
+                            fontWeight: 500,
+                            backgroundColor: subtleBackground,
+                            color: centerChannelColor,
+                            border: `1px solid ${borderColor}`,
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s'
+                        }}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => onConfirm(dontWarnAgain)}
+                        style={{
+                            padding: '10px 20px',
+                            fontSize: '14px',
+                            fontWeight: 500,
+                            backgroundColor: errorTextColor,
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s'
+                        }}
+                    >
+                        Delete Group & Tasks
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 // Task Group Section Component
 const TodoGroupSection: React.FC<{
@@ -1212,6 +1447,7 @@ const TodoGroupSection: React.FC<{
     const isUngrouped = groupId === null;
     const hasContent = tasks.length > 0;
     const isCreatedGroup = onDeleteGroup !== undefined;
+    const isFiltered = !hasContent && isCreatedGroup;
 
     const shouldShow = isCreatedGroup || hasContent || (isDragging && !isUngrouped) || (isDragging && isUngrouped);
 
@@ -1223,6 +1459,7 @@ const TodoGroupSection: React.FC<{
 
     const showDropZone = isDragging && tasks.length === 0;
     const dropIndicatorColor = buttonBg;
+    const groupOpacity = isFiltered ? 0.5 : 1;
 
     if (!hasContent && !showDropZone) {
         return (
@@ -1253,7 +1490,7 @@ const TodoGroupSection: React.FC<{
                         borderRadius: '8px',
                         padding: '8px',
                         border: isDraggingThis ? `2px dashed ${buttonBg}` : '2px solid transparent',
-                        opacity: isDraggingThis ? 0.4 : 1,
+                        opacity: isDraggingThis ? 0.4 : groupOpacity,
                         position: 'relative',
                         transition: 'all 0.2s ease',
                         cursor: group ? 'grab' : 'default'
@@ -1391,7 +1628,7 @@ const TodoGroupSection: React.FC<{
                     padding: '8px',
                     transition: 'all 0.2s ease',
                     position: 'relative',
-                    opacity: isDraggingThis ? 0.4 : 1,
+                    opacity: isDraggingThis ? 0.4 : groupOpacity,
                     cursor: group ? 'grab' : 'default'
                 }}
             >
