@@ -1265,20 +1265,6 @@ const TodoGroupSection: React.FC<{
                         alignItems: 'center'
                     }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-                            {group && (
-                                <div
-                                    style={{
-                                        color: dragHandleColor,
-                                        fontSize: '16px',
-                                        cursor: 'grab',
-                                        userSelect: 'none',
-                                        lineHeight: '1'
-                                    }}
-                                    title="Drag to reorder groups"
-                                >
-                                    ⋮⋮
-                                </div>
-                            )}
                             {isEditingName ? (
                                 <input
                                     ref={nameInputRef}
@@ -1416,20 +1402,6 @@ const TodoGroupSection: React.FC<{
                     marginBottom: tasks.length > 0 ? '12px' : '0'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-                        {group && (
-                            <div
-                                style={{
-                                    color: dragHandleColor,
-                                    fontSize: '16px',
-                                    cursor: 'grab',
-                                    userSelect: 'none',
-                                    lineHeight: '1'
-                                }}
-                                title="Drag to reorder groups"
-                            >
-                                ⋮⋮
-                            </div>
-                        )}
                         {isEditingName ? (
                             <input
                                 ref={nameInputRef}
@@ -1753,27 +1725,14 @@ const TodoItemComponent: React.FC<{
                 } as React.CSSProperties}
             >
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <div
-                        style={{
-                            marginRight: '8px',
-                            color: dragHandleColor,
-                            fontSize: '16px',
-                            cursor: 'grab',
-                            userSelect: 'none',
-                            lineHeight: '1'
-                        }}
-                        title="Drag to move between groups"
-                    >
-                        ⋮⋮
-                    </div>
-
                     <input
                         type="checkbox"
                         checked={task.completed}
                         onChange={() => onToggle(task)}
                         onClick={(e) => e.stopPropagation()}
                         style={{
-                            marginRight: '10px',
+                            marginLeft: '2px',
+                            marginRight: '6px',
                             marginTop: '3px',
                             cursor: 'pointer',
                             flexShrink: 0
@@ -1791,7 +1750,7 @@ const TodoItemComponent: React.FC<{
                                 onBlur={handleSaveEdit}
                                 style={{
                                     width: '100%',
-                                    padding: '4px 8px',
+                                    padding: '4px',
                                     fontSize: '14px',
                                     border: `2px solid ${buttonBg}`,
                                     borderRadius: '3px',
@@ -1830,7 +1789,7 @@ const TodoItemComponent: React.FC<{
                         )}
                     </div>
 
-                    <div style={{ position: 'relative', marginLeft: '10px', marginRight: '4px' }} ref={popupRef}>
+                    <div style={{ position: 'relative', marginLeft: '6px', marginRight: '4px' }} ref={popupRef}>
                         <div
                             onClick={() => setShowAssigneePopup(!showAssigneePopup)}
                             style={{
