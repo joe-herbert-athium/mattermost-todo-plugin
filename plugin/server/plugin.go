@@ -20,7 +20,7 @@ type TodoItem struct {
 	ID          string    `json:"id"`
 	Text        string    `json:"text"`
 	Completed   bool      `json:"completed"`
-	AssigneeID  string    `json:"assignee_id,omitempty"`
+	AssigneeIDs []string  `json:"assignee_ids,omitempty"`
 	GroupID     string    `json:"group_id,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	CompletedAt time.Time `json:"completed_at,omitempty"`
@@ -36,16 +36,11 @@ type ChannelTodoList struct {
 	Groups []TodoGroup `json:"groups"`
 }
 
+func (p *Plugin) OnActivate() error {
+	return nil
+}
+
 func (p *Plugin) ServeHTTP(c *plugin.Context, w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
 	switch r.URL.Path {
 	case "/api/v1/todos":
 		p.handleTodos(w, r)
@@ -190,6 +185,7 @@ func (p *Plugin) deleteGroup(w http.ResponseWriter, r *http.Request, channelID s
 	for i, group := range list.Groups {
 		if group.ID == groupID {
 			list.Groups = append(list.Groups[:i], list.Groups[i+1:]...)
+			// Remove group association from items
 			for j := range list.Items {
 				if list.Items[j].GroupID == groupID {
 					list.Items[j].GroupID = ""

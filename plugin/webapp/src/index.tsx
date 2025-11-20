@@ -5,7 +5,7 @@ interface TodoItem {
     id: string;
     text: string;
     completed: boolean;
-    assignee_id?: string;
+    assignee_ids?: string[];
     group_id?: string;
     created_at: string;
     completed_at?: string;
@@ -83,7 +83,6 @@ class TodoSidebar extends React.Component<any> {
 
     componentDidUpdate(prevProps: any) {
         console.log('TodoSidebar updated, props:', this.props);
-        // Reload when channel changes
         const prevChannelId = this.getChannelId(prevProps);
         const currentChannelId = this.getChannelId(this.props);
 
@@ -94,7 +93,6 @@ class TodoSidebar extends React.Component<any> {
     }
 
     getChannelId(props = this.props) {
-        // Try multiple ways to get the channel ID
         return props.channelId ||
             props.channel?.id ||
             (window as any).store?.getState()?.entities?.channels?.currentChannelId;
@@ -195,9 +193,18 @@ class TodoSidebar extends React.Component<any> {
         }
     };
 
-    updateTodoAssignee = async (todo: TodoItem, assigneeId: string) => {
+    toggleAssignee = async (todo: TodoItem, userId: string) => {
         const channelId = this.getChannelId();
         if (!channelId) return;
+
+        const currentAssignees = todo.assignee_ids || [];
+
+        let newAssignees;
+        if (currentAssignees.includes(userId)) {
+            newAssignees = currentAssignees.filter(id => id !== userId);
+        } else {
+            newAssignees = [...currentAssignees, userId];
+        }
 
         try {
             await fetch(`/plugins/com.mattermost.channel-todo/api/v1/todos?channel_id=${channelId}`, {
@@ -205,12 +212,12 @@ class TodoSidebar extends React.Component<any> {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     ...todo,
-                    assignee_id: assigneeId
+                    assignee_ids: newAssignees
                 })
             });
             this.loadTodos();
         } catch (error) {
-            console.error('Error updating assignee:', error);
+            console.error('Error toggling assignee:', error);
         }
     };
 
@@ -255,7 +262,6 @@ class TodoSidebar extends React.Component<any> {
 
     handleDragStart = (todo: TodoItem) => {
         console.log('Parent: handleDragStart called for todo:', todo.text);
-        // Use setTimeout to defer the state update until after the drag has been initiated
         setTimeout(() => {
             this.setState({ draggedTodo: todo });
         }, 0);
@@ -277,7 +283,6 @@ class TodoSidebar extends React.Component<any> {
             return;
         }
 
-        // Only update if the group actually changed
         const currentGroupId = draggedTodo.group_id || null;
         if (currentGroupId === targetGroupId) {
             console.log('Same group, no update needed');
@@ -332,15 +337,10 @@ class TodoSidebar extends React.Component<any> {
                     padding: '0'
                 }}
             >
-                {/* Content */}
                 <div
                     style={{ flex: 1, overflowY: 'auto', padding: '20px' }}
-                    onDragOver={(e) => {
-                        // Make the scroll container a valid drop target
-                        e.preventDefault();
-                    }}
+                    onDragOver={(e) => e.preventDefault()}
                 >
-                    {/* Add Todo Form */}
                     <div style={{ marginBottom: '20px' }}>
                         <input
                             type="text"
@@ -392,7 +392,6 @@ class TodoSidebar extends React.Component<any> {
                         </button>
                     </div>
 
-                    {/* Group Management */}
                     <div style={{ marginBottom: '20px' }}>
                         <button
                             onClick={() => this.setState({ showGroupForm: !showGroupForm })}
@@ -444,7 +443,6 @@ class TodoSidebar extends React.Component<any> {
                         )}
                     </div>
 
-                    {/* Todo List */}
                     <TodoGroupSection
                         title="Ungrouped"
                         groupId={null}
@@ -452,7 +450,7 @@ class TodoSidebar extends React.Component<any> {
                         channelMembers={channelMembers}
                         onToggle={this.toggleTodo}
                         onDelete={this.deleteTodo}
-                        onUpdateAssignee={this.updateTodoAssignee}
+                        onToggleAssignee={this.toggleAssignee}
                         onDragStart={this.handleDragStart}
                         onDragEnd={this.handleDragEnd}
                         onDrop={this.handleDrop}
@@ -468,7 +466,7 @@ class TodoSidebar extends React.Component<any> {
                             channelMembers={channelMembers}
                             onToggle={this.toggleTodo}
                             onDelete={this.deleteTodo}
-                            onUpdateAssignee={this.updateTodoAssignee}
+                            onToggleAssignee={this.toggleAssignee}
                             onDeleteGroup={() => this.deleteGroup(group.id)}
                             onDragStart={this.handleDragStart}
                             onDragEnd={this.handleDragEnd}
@@ -500,16 +498,15 @@ const TodoGroupSection: React.FC<{
     channelMembers: any[];
     onToggle: (todo: TodoItem) => void;
     onDelete: (todoId: string) => void;
-    onUpdateAssignee: (todo: TodoItem, assigneeId: string) => void;
+    onToggleAssignee: (todo: TodoItem, userId: string) => void;
     onDeleteGroup?: () => void;
     onDragStart: (todo: TodoItem) => void;
     onDragEnd: () => void;
     onDrop: (groupId: string | null) => void;
     isDragging: boolean;
-}> = ({ title, groupId, todos, channelMembers, onToggle, onDelete, onUpdateAssignee, onDeleteGroup, onDragStart, onDragEnd, onDrop, isDragging }) => {
+}> = ({ title, groupId, todos, channelMembers, onToggle, onDelete, onToggleAssignee, onDeleteGroup, onDragStart, onDragEnd, onDrop, isDragging }) => {
     const [isDragOver, setIsDragOver] = React.useState(false);
 
-    // Reset drag over state when dragging stops
     React.useEffect(() => {
         if (!isDragging) {
             setIsDragOver(false);
@@ -517,18 +514,15 @@ const TodoGroupSection: React.FC<{
     }, [isDragging]);
 
     const handleDragOver = (e: React.DragEvent) => {
-        console.log('Drag over group:', title);
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
         setIsDragOver(true);
     };
 
     const handleDragLeave = (e: React.DragEvent) => {
-        // Check if we're leaving the drop zone container itself, not just entering a child
         const target = e.currentTarget as HTMLElement;
         const relatedTarget = e.relatedTarget as HTMLElement;
 
-        // If relatedTarget is null or not a descendant of the drop zone, we've truly left
         if (!relatedTarget || !target.contains(relatedTarget)) {
             setIsDragOver(false);
         }
@@ -537,14 +531,10 @@ const TodoGroupSection: React.FC<{
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        console.log('Drop triggered for group:', title, groupId);
         setIsDragOver(false);
         onDrop(groupId);
     };
 
-    // Always show Ungrouped (groupId === null)
-    // Show groups if they have todos OR if we're currently dragging
-    // Show groups with delete buttons (created groups) even if empty
     const isUngrouped = groupId === null;
     const hasContent = todos.length > 0;
     const isCreatedGroup = onDeleteGroup !== undefined;
@@ -553,10 +543,8 @@ const TodoGroupSection: React.FC<{
 
     if (!shouldShow) return null;
 
-    // Show empty state message when dragging and section is empty
     const showDropZone = isDragging && todos.length === 0;
 
-    // If it's an empty group that's not showing a drop zone, render minimal markup
     if (!hasContent && !showDropZone) {
         return (
             <div
@@ -676,7 +664,7 @@ const TodoGroupSection: React.FC<{
                     channelMembers={channelMembers}
                     onToggle={onToggle}
                     onDelete={onDelete}
-                    onUpdateAssignee={onUpdateAssignee}
+                    onToggleAssignee={onToggleAssignee}
                     onDragStart={onDragStart}
                     onDragEnd={onDragEnd}
                 />
@@ -691,48 +679,53 @@ const TodoItemComponent: React.FC<{
     channelMembers: any[];
     onToggle: (todo: TodoItem) => void;
     onDelete: (todoId: string) => void;
-    onUpdateAssignee: (todo: TodoItem, assigneeId: string) => void;
+    onToggleAssignee: (todo: TodoItem, userId: string) => void;
     onDragStart: (todo: TodoItem) => void;
     onDragEnd: () => void;
-}> = ({ todo, channelMembers, onToggle, onDelete, onUpdateAssignee, onDragStart, onDragEnd }) => {
+}> = ({ todo, channelMembers, onToggle, onDelete, onToggleAssignee, onDragStart, onDragEnd }) => {
     const [isDragging, setIsDragging] = React.useState(false);
+    const [showAssigneePopup, setShowAssigneePopup] = React.useState(false);
+    const popupRef = React.useRef<HTMLDivElement>(null);
+
+    React.useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (popupRef.current && !popupRef.current.contains(event.target as Node)) {
+                setShowAssigneePopup(false);
+            }
+        };
+
+        if (showAssigneePopup) {
+            document.addEventListener('mousedown', handleClickOutside);
+            return () => document.removeEventListener('mousedown', handleClickOutside);
+        }
+    }, [showAssigneePopup]);
 
     const handleDragStart = (e: React.DragEvent) => {
-        console.log('=== DRAG START ===');
-        console.log('Todo:', todo.text, 'Group ID:', todo.group_id);
-
         setIsDragging(true);
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', todo.id);
         e.dataTransfer.dropEffect = 'move';
-
-        // Call parent handler after setting up the dataTransfer
         onDragStart(todo);
     };
 
     const handleDragEnd = (e: React.DragEvent) => {
-        console.log('=== DRAG END ===');
-        console.log('Todo:', todo.text);
-        console.log('Drop effect:', e.dataTransfer.dropEffect);
-
         setIsDragging(false);
         onDragEnd();
     };
 
     const handleDrag = (e: React.DragEvent) => {
-        // Continuously fires during drag - prevent any cancellation
+        // Continuously fires during drag
     };
 
     const handleMouseDown = (e: React.MouseEvent) => {
-        console.log('Mouse down on todo item, target:', (e.target as HTMLElement).tagName);
-        // Don't prevent default on the drag handle or when clicking on interactive elements
         const target = e.target as HTMLElement;
         if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'BUTTON') {
-            // For interactive elements, do nothing - let them work normally
             return;
         }
-        // Don't prevent default - we need the browser to start the drag
     };
+
+    const assigneeIds = todo.assignee_ids || [];
+    const assignedMembers = channelMembers.filter(m => assigneeIds.includes(m.id));
 
     return (
         <div
@@ -742,7 +735,6 @@ const TodoItemComponent: React.FC<{
             onDragEnd={handleDragEnd}
             onMouseDown={handleMouseDown}
             onDragOver={(e) => {
-                // Prevent the item from being a drop target for itself
                 e.preventDefault();
                 e.stopPropagation();
             }}
@@ -758,7 +750,7 @@ const TodoItemComponent: React.FC<{
                 userSelect: 'none'
             } as React.CSSProperties}
         >
-            <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start' }}>
                 <div
                     style={{
                         marginRight: '8px',
@@ -797,6 +789,140 @@ const TodoItemComponent: React.FC<{
                     {todo.text}
                 </div>
 
+                <div style={{ position: 'relative', marginLeft: '10px', marginRight: '4px' }} ref={popupRef}>
+                    <div
+                        onClick={() => setShowAssigneePopup(!showAssigneePopup)}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            cursor: 'pointer',
+                            padding: '2px'
+                        }}
+                        title="Assign members"
+                    >
+                        {assignedMembers.length === 0 ? (
+                            <div style={{
+                                width: '28px',
+                                height: '28px',
+                                borderRadius: '50%',
+                                backgroundColor: '#ddd',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '16px',
+                                color: '#666'
+                            }}>
+                                <i className="icon icon-account-outline" />
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                                {assignedMembers.slice(0, 3).map((member, index) => (
+                                    <img
+                                        key={member.id}
+                                        src={`/api/v4/users/${member.id}/image`}
+                                        alt={member.username}
+                                        style={{
+                                            width: '28px',
+                                            height: '28px',
+                                            borderRadius: '50%',
+                                            border: '2px solid white',
+                                            marginLeft: index > 0 ? '-10px' : '0',
+                                            position: 'relative',
+                                            zIndex: 3 - index
+                                        }}
+                                        title={member.username}
+                                    />
+                                ))}
+                                {assignedMembers.length > 3 && (
+                                    <div style={{
+                                        width: '28px',
+                                        height: '28px',
+                                        borderRadius: '50%',
+                                        backgroundColor: '#666',
+                                        color: 'white',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: '11px',
+                                        fontWeight: 'bold',
+                                        border: '2px solid white',
+                                        marginLeft: '-10px',
+                                        position: 'relative',
+                                        zIndex: 0
+                                    }}>
+                                        +{assignedMembers.length - 3}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {showAssigneePopup && (
+                        <div style={{
+                            position: 'absolute',
+                            top: '100%',
+                            right: 0,
+                            marginTop: '4px',
+                            backgroundColor: 'white',
+                            border: '1px solid #ddd',
+                            borderRadius: '4px',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                            zIndex: 1000,
+                            minWidth: '200px',
+                            maxHeight: '300px',
+                            overflowY: 'auto'
+                        }}>
+                            <div style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontSize: '12px', fontWeight: 600, color: '#666' }}>
+                                Assign to
+                            </div>
+                            {channelMembers.map(member => {
+                                const isAssigned = assigneeIds.includes(member.id);
+                                return (
+                                    <div
+                                        key={member.id}
+                                        onClick={() => onToggleAssignee(todo, member.id)}
+                                        style={{
+                                            padding: '8px 12px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            cursor: 'pointer',
+                                            backgroundColor: isAssigned ? '#f0f8ff' : 'transparent',
+                                            borderLeft: isAssigned ? '3px solid #1c58d9' : '3px solid transparent'
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            if (!isAssigned) {
+                                                e.currentTarget.style.backgroundColor = '#f9f9f9';
+                                            }
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            if (!isAssigned) {
+                                                e.currentTarget.style.backgroundColor = 'transparent';
+                                            }
+                                        }}
+                                    >
+                                        <img
+                                            src={`/api/v4/users/${member.id}/image`}
+                                            alt={member.username}
+                                            style={{
+                                                width: '24px',
+                                                height: '24px',
+                                                borderRadius: '50%',
+                                                marginRight: '8px'
+                                            }}
+                                        />
+                                        <span style={{ flex: 1, fontSize: '14px' }}>
+                      {member.username}
+                    </span>
+                                        {isAssigned && (
+                                            <i className="icon icon-check" style={{ color: '#1c58d9', fontSize: '16px' }} />
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
@@ -817,30 +943,6 @@ const TodoItemComponent: React.FC<{
                     ×
                 </button>
             </div>
-
-            <select
-                value={todo.assignee_id || ''}
-                onChange={(e) => {
-                    e.stopPropagation();
-                    onUpdateAssignee(todo, e.target.value);
-                }}
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                    width: '100%',
-                    padding: '6px 8px',
-                    fontSize: '12px',
-                    border: '1px solid #ddd',
-                    borderRadius: '3px',
-                    cursor: 'pointer'
-                }}
-            >
-                <option value="">Unassigned</option>
-                {channelMembers.map(member => (
-                    <option key={member.id} value={member.id}>
-                        @{member.username || member.id}
-                    </option>
-                ))}
-            </select>
         </div>
     );
 };
