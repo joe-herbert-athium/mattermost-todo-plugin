@@ -81,6 +81,26 @@ class TodoSidebar extends React.Component<any> {
         _lastChannelId: '',
     };
 
+    adjustOpacity = (foreground: string, background: string, opacity: number) => {
+        const hex2rgb = (hex: string) => {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : { r: 255, g: 255, b: 255 };
+        };
+
+        const fg = hex2rgb(foreground);
+        const bg = hex2rgb(background);
+
+        const r = Math.round(fg.r * opacity + bg.r * (1 - opacity));
+        const g = Math.round(fg.g * opacity + bg.g * (1 - opacity));
+        const b = Math.round(fg.b * opacity + bg.b * (1 - opacity));
+
+        return `rgb(${r}, ${g}, ${b})`;
+    };
+
     componentDidMount() {
         console.log('TodoSidebar mounted with props:', this.props);
         this.loadCurrentUser();
@@ -106,8 +126,6 @@ class TodoSidebar extends React.Component<any> {
     }
 
     componentDidUpdate(prevProps: any) {
-        // This is now primarily handled by the interval in componentDidMount
-        // but we keep this for immediate prop changes
         const prevChannelId = this.getChannelId(prevProps);
         const currentChannelId = this.getChannelId(this.props);
 
@@ -362,7 +380,6 @@ class TodoSidebar extends React.Component<any> {
             return todo.group_id === groupId;
         });
 
-        // Apply "My Tasks" filter if enabled
         if (filterMyTasks && currentUserId) {
             filtered = filtered.filter(todo => {
                 const assigneeIds = todo.assignee_ids || [];
@@ -375,7 +392,22 @@ class TodoSidebar extends React.Component<any> {
 
     render() {
         const { newTodoText, newGroupName, selectedGroup, groups, channelMembers, showGroupForm, showTodoForm, draggedTodo, filterMyTasks } = this.state;
-        const channelName = this.props.channelDisplayName || 'Channel';
+
+        // Theme is passed as a prop by Mattermost
+        const theme = this.props.theme || {};
+
+        // Theme colors with fallbacks
+        const centerChannelBg = theme.centerChannelBg || '#ffffff';
+        const centerChannelColor = theme.centerChannelColor || '#333333';
+        const buttonBg = theme.buttonBg || '#1c58d9';
+        const buttonColor = theme.buttonColor || '#ffffff';
+        const onlineIndicator = theme.onlineIndicator || '#28a745';
+        const errorTextColor = theme.errorTextColor || '#dc3545';
+
+        // Derived colors
+        const subtleBackground = this.adjustOpacity(centerChannelColor, centerChannelBg, 0.05);
+        const borderColor = this.adjustOpacity(centerChannelColor, centerChannelBg, 0.1);
+        const subtleText = this.adjustOpacity(centerChannelColor, centerChannelBg, 0.6);
 
         return (
             <div
@@ -383,7 +415,9 @@ class TodoSidebar extends React.Component<any> {
                     height: '100%',
                     display: 'flex',
                     flexDirection: 'column',
-                    padding: '0'
+                    padding: '0',
+                    backgroundColor: centerChannelBg,
+                    color: centerChannelColor
                 }}
             >
                 <div
@@ -397,8 +431,9 @@ class TodoSidebar extends React.Component<any> {
                         alignItems: 'center',
                         gap: '8px',
                         padding: '8px 12px',
-                        backgroundColor: '#f5f5f5',
-                        borderRadius: '4px'
+                        backgroundColor: subtleBackground,
+                        borderRadius: '4px',
+                        border: `1px solid ${borderColor}`
                     }}>
                         <input
                             type="checkbox"
@@ -413,7 +448,7 @@ class TodoSidebar extends React.Component<any> {
                                 cursor: 'pointer',
                                 fontSize: '14px',
                                 fontWeight: 500,
-                                color: '#333',
+                                color: centerChannelColor,
                                 userSelect: 'none'
                             }}
                         >
@@ -434,9 +469,9 @@ class TodoSidebar extends React.Component<any> {
                                 padding: '8px 12px',
                                 fontSize: '14px',
                                 fontWeight: 500,
-                                backgroundColor: showTodoForm ? '#1c58d9' : '#f5f5f5',
-                                color: showTodoForm ? 'white' : '#333',
-                                border: 'none',
+                                backgroundColor: showTodoForm ? buttonBg : subtleBackground,
+                                color: showTodoForm ? buttonColor : centerChannelColor,
+                                border: `1px solid ${borderColor}`,
                                 borderRadius: '4px',
                                 cursor: 'pointer',
                                 transition: 'all 0.2s'
@@ -451,9 +486,9 @@ class TodoSidebar extends React.Component<any> {
                                 padding: '8px 12px',
                                 fontSize: '14px',
                                 fontWeight: 500,
-                                backgroundColor: showGroupForm ? '#28a745' : '#f5f5f5',
-                                color: showGroupForm ? 'white' : '#333',
-                                border: 'none',
+                                backgroundColor: showGroupForm ? onlineIndicator : subtleBackground,
+                                color: showGroupForm ? '#ffffff' : centerChannelColor,
+                                border: `1px solid ${borderColor}`,
                                 borderRadius: '4px',
                                 cursor: 'pointer',
                                 transition: 'all 0.2s'
@@ -476,9 +511,11 @@ class TodoSidebar extends React.Component<any> {
                                     width: '100%',
                                     padding: '10px',
                                     marginBottom: '8px',
-                                    border: '1px solid #ddd',
+                                    border: `1px solid ${borderColor}`,
                                     borderRadius: '4px',
-                                    fontSize: '14px'
+                                    fontSize: '14px',
+                                    backgroundColor: centerChannelBg,
+                                    color: centerChannelColor
                                 }}
                                 autoFocus
                             />
@@ -489,9 +526,11 @@ class TodoSidebar extends React.Component<any> {
                                     width: '100%',
                                     padding: '10px',
                                     marginBottom: '8px',
-                                    border: '1px solid #ddd',
+                                    border: `1px solid ${borderColor}`,
                                     borderRadius: '4px',
-                                    fontSize: '14px'
+                                    fontSize: '14px',
+                                    backgroundColor: centerChannelBg,
+                                    color: centerChannelColor
                                 }}
                             >
                                 <option value="">No Group</option>
@@ -504,8 +543,8 @@ class TodoSidebar extends React.Component<any> {
                                 style={{
                                     width: '100%',
                                     padding: '10px',
-                                    backgroundColor: '#1c58d9',
-                                    color: 'white',
+                                    backgroundColor: buttonBg,
+                                    color: buttonColor,
                                     border: 'none',
                                     borderRadius: '4px',
                                     fontSize: '14px',
@@ -531,9 +570,11 @@ class TodoSidebar extends React.Component<any> {
                                     width: '100%',
                                     padding: '10px',
                                     marginBottom: '8px',
-                                    border: '1px solid #ddd',
+                                    border: `1px solid ${borderColor}`,
                                     borderRadius: '4px',
-                                    fontSize: '14px'
+                                    fontSize: '14px',
+                                    backgroundColor: centerChannelBg,
+                                    color: centerChannelColor
                                 }}
                                 autoFocus
                             />
@@ -542,8 +583,8 @@ class TodoSidebar extends React.Component<any> {
                                 style={{
                                     width: '100%',
                                     padding: '10px',
-                                    backgroundColor: '#28a745',
-                                    color: 'white',
+                                    backgroundColor: onlineIndicator,
+                                    color: '#ffffff',
                                     border: 'none',
                                     borderRadius: '4px',
                                     fontSize: '14px',
@@ -568,6 +609,7 @@ class TodoSidebar extends React.Component<any> {
                         onDragEnd={this.handleDragEnd}
                         onDrop={this.handleDrop}
                         isDragging={!!draggedTodo}
+                        theme={theme}
                     />
 
                     {groups.map(group => (
@@ -585,6 +627,7 @@ class TodoSidebar extends React.Component<any> {
                             onDragEnd={this.handleDragEnd}
                             onDrop={this.handleDrop}
                             isDragging={!!draggedTodo}
+                            theme={theme}
                         />
                     ))}
 
@@ -592,7 +635,7 @@ class TodoSidebar extends React.Component<any> {
                         <div style={{
                             textAlign: 'center',
                             padding: '40px 20px',
-                            color: '#888'
+                            color: subtleText
                         }}>
                             No todos yet. Add one above to get started!
                         </div>
@@ -617,8 +660,39 @@ const TodoGroupSection: React.FC<{
     onDragEnd: () => void;
     onDrop: (groupId: string | null) => void;
     isDragging: boolean;
-}> = ({ title, groupId, todos, channelMembers, onToggle, onDelete, onToggleAssignee, onDeleteGroup, onDragStart, onDragEnd, onDrop, isDragging }) => {
+    theme: any;
+}> = ({ title, groupId, todos, channelMembers, onToggle, onDelete, onToggleAssignee, onDeleteGroup, onDragStart, onDragEnd, onDrop, isDragging, theme }) => {
     const [isDragOver, setIsDragOver] = React.useState(false);
+
+    // Theme colors with fallbacks
+    const centerChannelBg = theme?.centerChannelBg || '#ffffff';
+    const centerChannelColor = theme?.centerChannelColor || '#333333';
+    const buttonBg = theme?.buttonBg || '#1c58d9';
+    const errorTextColor = theme?.errorTextColor || '#dc3545';
+
+    const adjustOpacity = (foreground: string, background: string, opacity: number) => {
+        const hex2rgb = (hex: string) => {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : { r: 255, g: 255, b: 255 };
+        };
+
+        const fg = hex2rgb(foreground);
+        const bg = hex2rgb(background);
+
+        const r = Math.round(fg.r * opacity + bg.r * (1 - opacity));
+        const g = Math.round(fg.g * opacity + bg.g * (1 - opacity));
+        const b = Math.round(fg.b * opacity + bg.b * (1 - opacity));
+
+        return `rgb(${r}, ${g}, ${b})`;
+    };
+
+    const borderColor = adjustOpacity(centerChannelColor, centerChannelBg, 0.1);
+    const subtleText = adjustOpacity(centerChannelColor, centerChannelBg, 0.6);
+    const dropZoneBg = adjustOpacity(buttonBg, centerChannelBg, 0.1);
 
     React.useEffect(() => {
         if (!isDragging) {
@@ -652,11 +726,8 @@ const TodoGroupSection: React.FC<{
     const hasContent = todos.length > 0;
     const isCreatedGroup = onDeleteGroup !== undefined;
 
-    // For ungrouped: only show if it has content OR if there are groups (for drag target) OR if dragging
-    // For created groups: always show
     const shouldShow = isCreatedGroup || hasContent || (isDragging && !isUngrouped) || (isDragging && isUngrouped);
 
-    // Hide ungrouped completely if it has no content and we're not dragging
     if (isUngrouped && !hasContent && !isDragging) {
         return null;
     }
@@ -688,7 +759,7 @@ const TodoGroupSection: React.FC<{
                         fontSize: '13px',
                         fontWeight: 600,
                         textTransform: 'uppercase',
-                        color: '#666',
+                        color: subtleText,
                         letterSpacing: '0.5px'
                     }}>
                         {title}
@@ -699,7 +770,7 @@ const TodoGroupSection: React.FC<{
                             style={{
                                 padding: '4px 8px',
                                 fontSize: '11px',
-                                backgroundColor: '#dc3545',
+                                backgroundColor: errorTextColor,
                                 color: 'white',
                                 border: 'none',
                                 borderRadius: '3px',
@@ -719,8 +790,8 @@ const TodoGroupSection: React.FC<{
             style={{
                 marginBottom: '20px',
                 minHeight: showDropZone ? '80px' : 'auto',
-                backgroundColor: isDragOver ? '#f0f8ff' : (showDropZone ? '#fafafa' : 'transparent'),
-                border: isDragOver ? '2px dashed #1c58d9' : (showDropZone ? '2px dashed #ddd' : 'none'),
+                backgroundColor: isDragOver ? dropZoneBg : (showDropZone ? adjustOpacity(centerChannelColor, centerChannelBg, 0.02) : 'transparent'),
+                border: isDragOver ? `2px dashed ${buttonBg}` : (showDropZone ? `2px dashed ${borderColor}` : 'none'),
                 borderRadius: '8px',
                 padding: '12px',
                 transition: 'all 0.2s ease',
@@ -741,7 +812,7 @@ const TodoGroupSection: React.FC<{
                     fontSize: '13px',
                     fontWeight: 600,
                     textTransform: 'uppercase',
-                    color: '#666',
+                    color: subtleText,
                     letterSpacing: '0.5px'
                 }}>
                     {title}
@@ -752,7 +823,7 @@ const TodoGroupSection: React.FC<{
                         style={{
                             padding: '4px 8px',
                             fontSize: '11px',
-                            backgroundColor: '#dc3545',
+                            backgroundColor: errorTextColor,
                             color: 'white',
                             border: 'none',
                             borderRadius: '3px',
@@ -768,7 +839,7 @@ const TodoGroupSection: React.FC<{
                 <div style={{
                     padding: '24px',
                     textAlign: 'center',
-                    color: isDragOver ? '#1c58d9' : '#999',
+                    color: isDragOver ? buttonBg : subtleText,
                     fontSize: '13px',
                     fontStyle: 'italic',
                     fontWeight: isDragOver ? 600 : 400
@@ -787,6 +858,7 @@ const TodoGroupSection: React.FC<{
                     onToggleAssignee={onToggleAssignee}
                     onDragStart={onDragStart}
                     onDragEnd={onDragEnd}
+                    theme={theme}
                 />
             ))}
         </div>
@@ -802,10 +874,46 @@ const TodoItemComponent: React.FC<{
     onToggleAssignee: (todo: TodoItem, userId: string) => void;
     onDragStart: (todo: TodoItem) => void;
     onDragEnd: () => void;
-}> = ({ todo, channelMembers, onToggle, onDelete, onToggleAssignee, onDragStart, onDragEnd }) => {
+    theme: any;
+}> = ({ todo, channelMembers, onToggle, onDelete, onToggleAssignee, onDragStart, onDragEnd, theme }) => {
     const [isDragging, setIsDragging] = React.useState(false);
     const [showAssigneePopup, setShowAssigneePopup] = React.useState(false);
     const popupRef = React.useRef<HTMLDivElement>(null);
+
+    // Theme colors with fallbacks
+    const centerChannelBg = theme?.centerChannelBg || '#ffffff';
+    const centerChannelColor = theme?.centerChannelColor || '#333333';
+    const buttonBg = theme?.buttonBg || '#1c58d9';
+    const errorTextColor = theme?.errorTextColor || '#dc3545';
+
+    const adjustOpacity = (foreground: string, background: string, opacity: number) => {
+        const hex2rgb = (hex: string) => {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : { r: 255, g: 255, b: 255 };
+        };
+
+        const fg = hex2rgb(foreground);
+        const bg = hex2rgb(background);
+
+        const r = Math.round(fg.r * opacity + bg.r * (1 - opacity));
+        const g = Math.round(fg.g * opacity + bg.g * (1 - opacity));
+        const b = Math.round(fg.b * opacity + bg.b * (1 - opacity));
+
+        return `rgb(${r}, ${g}, ${b})`;
+    };
+
+    const borderColor = adjustOpacity(centerChannelColor, centerChannelBg, 0.1);
+    const completedBg = adjustOpacity(centerChannelColor, centerChannelBg, 0.03);
+    const completedText = adjustOpacity(centerChannelColor, centerChannelBg, 0.5);
+    const dragHandleColor = adjustOpacity(centerChannelColor, centerChannelBg, 0.4);
+    const hoverBg = adjustOpacity(centerChannelColor, centerChannelBg, 0.05);
+    const assigneeBg = adjustOpacity(centerChannelColor, centerChannelBg, 0.08);
+    const popupBorder = adjustOpacity(centerChannelColor, centerChannelBg, 0.15);
+    const selectedBg = adjustOpacity(buttonBg, centerChannelBg, 0.1);
 
     React.useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -860,10 +968,10 @@ const TodoItemComponent: React.FC<{
             }}
             style={{
                 padding: '12px',
-                backgroundColor: todo.completed ? '#f8f9fa' : '#fff',
+                backgroundColor: todo.completed ? completedBg : centerChannelBg,
                 borderRadius: '4px',
                 marginBottom: '8px',
-                border: isDragging ? '2px dashed #1c58d9' : '1px solid #e9ecef',
+                border: isDragging ? `2px dashed ${buttonBg}` : `1px solid ${borderColor}`,
                 opacity: isDragging ? 0.4 : 1,
                 cursor: 'grab',
                 transition: 'opacity 0.2s ease, border 0.2s ease',
@@ -874,7 +982,7 @@ const TodoItemComponent: React.FC<{
                 <div
                     style={{
                         marginRight: '8px',
-                        color: '#999',
+                        color: dragHandleColor,
                         fontSize: '16px',
                         cursor: 'grab',
                         userSelect: 'none',
@@ -901,7 +1009,7 @@ const TodoItemComponent: React.FC<{
                 <div style={{
                     flex: 1,
                     textDecoration: todo.completed ? 'line-through' : 'none',
-                    color: todo.completed ? '#888' : '#333',
+                    color: todo.completed ? completedText : centerChannelColor,
                     wordBreak: 'break-word',
                     fontSize: '14px',
                     lineHeight: '1.5'
@@ -925,12 +1033,12 @@ const TodoItemComponent: React.FC<{
                                 width: '28px',
                                 height: '28px',
                                 borderRadius: '50%',
-                                backgroundColor: '#ddd',
+                                backgroundColor: assigneeBg,
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 fontSize: '16px',
-                                color: '#666'
+                                color: dragHandleColor
                             }}>
                                 <i className="icon icon-account-outline" />
                             </div>
@@ -945,7 +1053,7 @@ const TodoItemComponent: React.FC<{
                                             width: '28px',
                                             height: '28px',
                                             borderRadius: '50%',
-                                            border: '2px solid white',
+                                            border: `2px solid ${centerChannelBg}`,
                                             marginLeft: index > 0 ? '-10px' : '0',
                                             position: 'relative',
                                             zIndex: 3 - index
@@ -958,14 +1066,14 @@ const TodoItemComponent: React.FC<{
                                         width: '28px',
                                         height: '28px',
                                         borderRadius: '50%',
-                                        backgroundColor: '#666',
-                                        color: 'white',
+                                        backgroundColor: dragHandleColor,
+                                        color: centerChannelBg,
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
                                         fontSize: '11px',
                                         fontWeight: 'bold',
-                                        border: '2px solid white',
+                                        border: `2px solid ${centerChannelBg}`,
                                         marginLeft: '-10px',
                                         position: 'relative',
                                         zIndex: 0
@@ -983,8 +1091,8 @@ const TodoItemComponent: React.FC<{
                             top: '100%',
                             right: 0,
                             marginTop: '4px',
-                            backgroundColor: 'white',
-                            border: '1px solid #ddd',
+                            backgroundColor: centerChannelBg,
+                            border: `1px solid ${popupBorder}`,
                             borderRadius: '4px',
                             boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
                             zIndex: 1000,
@@ -992,7 +1100,13 @@ const TodoItemComponent: React.FC<{
                             maxHeight: '300px',
                             overflowY: 'auto'
                         }}>
-                            <div style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontSize: '12px', fontWeight: 600, color: '#666' }}>
+                            <div style={{
+                                padding: '8px 12px',
+                                borderBottom: `1px solid ${borderColor}`,
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                color: dragHandleColor
+                            }}>
                                 Assign to
                             </div>
                             {channelMembers.map(member => {
@@ -1006,12 +1120,12 @@ const TodoItemComponent: React.FC<{
                                             display: 'flex',
                                             alignItems: 'center',
                                             cursor: 'pointer',
-                                            backgroundColor: isAssigned ? '#f0f8ff' : 'transparent',
-                                            borderLeft: isAssigned ? '3px solid #1c58d9' : '3px solid transparent'
+                                            backgroundColor: isAssigned ? selectedBg : 'transparent',
+                                            borderLeft: isAssigned ? `3px solid ${buttonBg}` : '3px solid transparent'
                                         }}
                                         onMouseEnter={(e) => {
                                             if (!isAssigned) {
-                                                e.currentTarget.style.backgroundColor = '#f9f9f9';
+                                                e.currentTarget.style.backgroundColor = hoverBg;
                                             }
                                         }}
                                         onMouseLeave={(e) => {
@@ -1030,11 +1144,11 @@ const TodoItemComponent: React.FC<{
                                                 marginRight: '8px'
                                             }}
                                         />
-                                        <span style={{ flex: 1, fontSize: '14px' }}>
-                      {member.username}
-                    </span>
+                                        <span style={{ flex: 1, fontSize: '14px', color: centerChannelColor }}>
+                                            {member.username}
+                                        </span>
                                         {isAssigned && (
-                                            <i className="icon icon-check" style={{ color: '#1c58d9', fontSize: '16px' }} />
+                                            <i className="icon icon-check" style={{ color: buttonBg, fontSize: '16px' }} />
                                         )}
                                     </div>
                                 );
@@ -1051,7 +1165,7 @@ const TodoItemComponent: React.FC<{
                     style={{
                         padding: '4px 8px',
                         fontSize: '16px',
-                        color: '#dc3545',
+                        color: errorTextColor,
                         background: 'none',
                         border: 'none',
                         cursor: 'pointer',

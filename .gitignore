@@ -1,5 +1,4 @@
 plugin/webapp/node_modules/
-plugin/dist/server/
-plugin/dist/webapp/
+plugin/dist/
 plugin/server/dist/
 plugin/webapp/dist/
