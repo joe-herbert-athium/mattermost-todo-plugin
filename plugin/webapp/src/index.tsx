@@ -652,7 +652,14 @@ const TodoGroupSection: React.FC<{
     const hasContent = todos.length > 0;
     const isCreatedGroup = onDeleteGroup !== undefined;
 
-    const shouldShow = isUngrouped || hasContent || isDragging || isCreatedGroup;
+    // For ungrouped: only show if it has content OR if there are groups (for drag target) OR if dragging
+    // For created groups: always show
+    const shouldShow = isCreatedGroup || hasContent || (isDragging && !isUngrouped) || (isDragging && isUngrouped);
+
+    // Hide ungrouped completely if it has no content and we're not dragging
+    if (isUngrouped && !hasContent && !isDragging) {
+        return null;
+    }
 
     if (!shouldShow) return null;
 
