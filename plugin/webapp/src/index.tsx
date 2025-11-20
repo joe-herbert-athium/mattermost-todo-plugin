@@ -26,13 +26,59 @@ interface ChannelTodoList {
 export default class Plugin {
     private store: any = null;
     private toggleRHSPlugin: any = null;
+    private channelChangeCallbacks: Array<() => void> = [];
 
     public initialize(registry: any, store: any) {
         this.store = store;
 
+        // Create a title component that updates when channel changes
+        const DynamicTitle = () => {
+            const [title, setTitle] = React.useState('Channel Tasks');
+
+            React.useEffect(() => {
+                let lastChannelId: string | null = null;
+
+                const updateTitle = () => {
+                    const state = store.getState();
+                    const currentChannelId = state?.entities?.channels?.currentChannelId;
+
+                    if (currentChannelId && currentChannelId !== lastChannelId) {
+                        lastChannelId = currentChannelId;
+                        const channels = state?.entities?.channels?.channels;
+
+                        if (channels && channels[currentChannelId]) {
+                            const channel = channels[currentChannelId];
+                            setTitle(`${channel.display_name || channel.name} Tasks`);
+                        }
+
+                        // Notify all registered callbacks that channel changed
+                        this.channelChangeCallbacks.forEach(callback => callback());
+                    }
+                };
+
+                // Initial update
+                updateTitle();
+
+                // Subscribe to store changes
+                const unsubscribe = store.subscribe(updateTitle);
+                return () => unsubscribe();
+            }, []);
+
+            return <span>{title}</span>;
+        };
+
+        // Wrapper component to provide channel change callback
+        const TodoSidebarWrapper = (props: any) => {
+            const onChannelChange = (callback: () => void) => {
+                this.channelChangeCallbacks.push(callback);
+            };
+
+            return <TodoSidebar {...props} onChannelChange={onChannelChange} />;
+        };
+
         const {toggleRHSPlugin} = registry.registerRightHandSidebarComponent(
-            TodoSidebar,
-            'Channel Tasks'
+            TodoSidebarWrapper,
+            DynamicTitle
         );
 
         this.toggleRHSPlugin = toggleRHSPlugin;
@@ -62,8 +108,6 @@ export default class Plugin {
 
 // Sidebar Component (for RHS)
 class TodoSidebar extends React.Component<any> {
-    private channelCheckInterval: any = null;
-
     state = {
         tasks: [] as TodoItem[],
         groups: [] as TodoGroup[],
@@ -83,7 +127,6 @@ class TodoSidebar extends React.Component<any> {
         filterMyTasks: false,
         filterCompletion: 'all' as 'all' | 'complete' | 'incomplete',
         currentUserId: '',
-        _lastChannelId: '',
         deleteGroupWarningShown: false,
         groupToDelete: null as { id: string, name: string, taskCount: number } | null,
     };
@@ -115,21 +158,18 @@ class TodoSidebar extends React.Component<any> {
         this.loadTodos();
         this.loadChannelMembers();
 
-        this.channelCheckInterval = setInterval(() => {
-            const currentChannelId = this.getChannelId();
-            if (currentChannelId && currentChannelId !== this.state._lastChannelId) {
-                console.log('Channel changed from', this.state._lastChannelId, 'to', currentChannelId);
-                this.setState({ _lastChannelId: currentChannelId });
+        // Subscribe to channel changes if onChannelChange prop is provided
+        if (this.props.onChannelChange) {
+            this.props.onChannelChange(() => {
+                console.log('Channel changed, reloading data');
                 this.loadTodos();
                 this.loadChannelMembers();
-            }
-        }, 500);
+            });
+        }
     }
 
     componentWillUnmount() {
-        if (this.channelCheckInterval) {
-            clearInterval(this.channelCheckInterval);
-        }
+        // No cleanup needed anymore
     }
 
     componentDidUpdate(prevProps: any) {
