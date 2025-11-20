@@ -73,6 +73,7 @@ class TodoSidebar extends React.Component<any> {
         channelMembers: [] as any[],
         showGroupForm: false,
         showTodoForm: false,
+        showFilters: false,
         draggedTodo: null as TodoItem | null,
         dragOverTodoId: null as string | null,
         dragOverPosition: null as 'before' | 'after' | null,
@@ -80,6 +81,7 @@ class TodoSidebar extends React.Component<any> {
         dragOverGroupId: null as string | null,
         dragOverGroupPosition: null as 'before' | 'after' | null,
         filterMyTasks: false,
+        filterCompletion: 'all' as 'all' | 'complete' | 'incomplete',
         currentUserId: '',
         _lastChannelId: '',
     };
@@ -333,6 +335,25 @@ class TodoSidebar extends React.Component<any> {
             this.loadTodos();
         } catch (error) {
             console.error('Error deleting group:', error);
+        }
+    };
+
+    updateGroupName = async (group: TodoGroup, newName: string) => {
+        const channelId = this.getChannelId();
+        if (!channelId || !newName.trim()) return;
+
+        try {
+            await fetch(`/plugins/com.mattermost.channel-todo/api/v1/groups?channel_id=${channelId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...group,
+                    name: newName
+                })
+            });
+            this.loadTodos();
+        } catch (error) {
+            console.error('Error updating group name:', error);
         }
     };
 
@@ -594,7 +615,7 @@ class TodoSidebar extends React.Component<any> {
     };
 
     groupedTodos = (groupId: string | null) => {
-        const { filterMyTasks, currentUserId } = this.state;
+        const { filterMyTasks, filterCompletion, currentUserId } = this.state;
 
         let filtered = this.state.tasks.filter(task => {
             if (groupId === null) {
@@ -608,6 +629,12 @@ class TodoSidebar extends React.Component<any> {
                 const assigneeIds = task.assignee_ids || [];
                 return assigneeIds.includes(currentUserId);
             });
+        }
+
+        if (filterCompletion === 'complete') {
+            filtered = filtered.filter(task => task.completed);
+        } else if (filterCompletion === 'incomplete') {
+            filtered = filtered.filter(task => !task.completed);
         }
 
         return filtered.sort((a, b) => {
@@ -626,7 +653,7 @@ class TodoSidebar extends React.Component<any> {
     };
 
     render() {
-        const { newTodoText, newGroupName, selectedGroup, channelMembers, showGroupForm, showTodoForm, draggedTodo, filterMyTasks, dragOverTodoId, dragOverPosition, draggedGroup, dragOverGroupId, dragOverGroupPosition } = this.state;
+        const { newTodoText, newGroupName, selectedGroup, channelMembers, showGroupForm, showTodoForm, showFilters, draggedTodo, filterMyTasks, filterCompletion, dragOverTodoId, dragOverPosition, draggedGroup, dragOverGroupId, dragOverGroupPosition } = this.state;
 
         const theme = this.props.theme || {};
 
@@ -661,55 +688,10 @@ class TodoSidebar extends React.Component<any> {
                     <div style={{
                         marginBottom: '20px',
                         display: 'flex',
-                        gap: '0',
-                        border: `1px solid ${borderColor}`,
-                        borderRadius: '4px',
-                        overflow: 'hidden'
-                    }}>
-                        <button
-                            onClick={() => this.setState({ filterMyTasks: false })}
-                            style={{
-                                flex: 1,
-                                padding: '8px 16px',
-                                fontSize: '14px',
-                                fontWeight: 500,
-                                backgroundColor: !filterMyTasks ? buttonBg : subtleBackground,
-                                color: !filterMyTasks ? buttonColor : centerChannelColor,
-                                border: 'none',
-                                borderRight: `1px solid ${borderColor}`,
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                userSelect: 'none'
-                            }}
-                        >
-                            All
-                        </button>
-                        <button
-                            onClick={() => this.setState({ filterMyTasks: true })}
-                            style={{
-                                flex: 1,
-                                padding: '8px 16px',
-                                fontSize: '14px',
-                                fontWeight: 500,
-                                backgroundColor: filterMyTasks ? buttonBg : subtleBackground,
-                                color: filterMyTasks ? buttonColor : centerChannelColor,
-                                border: 'none',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                userSelect: 'none'
-                            }}
-                        >
-                            Assigned to me
-                        </button>
-                    </div>
-
-                    <div style={{
-                        marginBottom: '20px',
-                        display: 'flex',
                         gap: '8px'
                     }}>
                         <button
-                            onClick={() => this.setState({ showTodoForm: !showTodoForm, showGroupForm: false })}
+                            onClick={() => this.setState({ showTodoForm: !showTodoForm, showGroupForm: false, showFilters: false })}
                             style={{
                                 flex: 1,
                                 padding: '8px 12px',
@@ -723,10 +705,10 @@ class TodoSidebar extends React.Component<any> {
                                 transition: 'all 0.2s'
                             }}
                         >
-                            {showTodoForm ? '− Task' : '+ Task'}
+                            {showTodoForm ? '- Add Task' : '+ Add Task'}
                         </button>
                         <button
-                            onClick={() => this.setState({ showGroupForm: !showGroupForm, showTodoForm: false })}
+                            onClick={() => this.setState({ showGroupForm: !showGroupForm, showTodoForm: false, showFilters: false })}
                             style={{
                                 flex: 1,
                                 padding: '8px 12px',
@@ -740,9 +722,137 @@ class TodoSidebar extends React.Component<any> {
                                 transition: 'all 0.2s'
                             }}
                         >
-                            {showGroupForm ? '− Group' : '+ Group'}
+                            {showGroupForm ? '− Add Group' : '+ Add Group'}
+                        </button>
+                        <button
+                            onClick={() => this.setState({ showFilters: !showFilters, showGroupForm: false, showTodoForm: false })}
+                            style={{
+                                flex: 1,
+                                padding: '8px 12px',
+                                fontSize: '14px',
+                                fontWeight: 500,
+                                backgroundColor: showFilters ? buttonBg : subtleBackground,
+                                color: showFilters ? buttonColor : centerChannelColor,
+                                border: `1px solid ${borderColor}`,
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            {showFilters ? '− Filters' : '+ Filters'}
                         </button>
                     </div>
+
+                    {showFilters && (
+                        <div style={{ marginBottom: '20px' }}>
+                            <div style={{
+                                marginBottom: '12px',
+                                display: 'flex',
+                                gap: '0',
+                                border: `1px solid ${borderColor}`,
+                                borderRadius: '4px',
+                                overflow: 'hidden'
+                            }}>
+                                <button
+                                    onClick={() => this.setState({ filterMyTasks: false })}
+                                    style={{
+                                        flex: 1,
+                                        padding: '8px 16px',
+                                        fontSize: '14px',
+                                        fontWeight: 500,
+                                        backgroundColor: !filterMyTasks ? buttonBg : subtleBackground,
+                                        color: !filterMyTasks ? buttonColor : centerChannelColor,
+                                        border: 'none',
+                                        borderRight: `1px solid ${borderColor}`,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        userSelect: 'none'
+                                    }}
+                                >
+                                    All
+                                </button>
+                                <button
+                                    onClick={() => this.setState({ filterMyTasks: true })}
+                                    style={{
+                                        flex: 1,
+                                        padding: '8px 16px',
+                                        fontSize: '14px',
+                                        fontWeight: 500,
+                                        backgroundColor: filterMyTasks ? buttonBg : subtleBackground,
+                                        color: filterMyTasks ? buttonColor : centerChannelColor,
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        userSelect: 'none'
+                                    }}
+                                >
+                                    Assigned to me
+                                </button>
+                            </div>
+
+                            <div style={{
+                                display: 'flex',
+                                gap: '0',
+                                border: `1px solid ${borderColor}`,
+                                borderRadius: '4px',
+                                overflow: 'hidden'
+                            }}>
+                                <button
+                                    onClick={() => this.setState({ filterCompletion: 'all' })}
+                                    style={{
+                                        flex: 1,
+                                        padding: '8px 16px',
+                                        fontSize: '14px',
+                                        fontWeight: 500,
+                                        backgroundColor: filterCompletion === 'all' ? buttonBg : subtleBackground,
+                                        color: filterCompletion === 'all' ? buttonColor : centerChannelColor,
+                                        border: 'none',
+                                        borderRight: `1px solid ${borderColor}`,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        userSelect: 'none'
+                                    }}
+                                >
+                                    All
+                                </button>
+                                <button
+                                    onClick={() => this.setState({ filterCompletion: 'complete' })}
+                                    style={{
+                                        flex: 1,
+                                        padding: '8px 16px',
+                                        fontSize: '14px',
+                                        fontWeight: 500,
+                                        backgroundColor: filterCompletion === 'complete' ? buttonBg : subtleBackground,
+                                        color: filterCompletion === 'complete' ? buttonColor : centerChannelColor,
+                                        border: 'none',
+                                        borderRight: `1px solid ${borderColor}`,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        userSelect: 'none'
+                                    }}
+                                >
+                                    Complete
+                                </button>
+                                <button
+                                    onClick={() => this.setState({ filterCompletion: 'incomplete' })}
+                                    style={{
+                                        flex: 1,
+                                        padding: '8px 16px',
+                                        fontSize: '14px',
+                                        fontWeight: 500,
+                                        backgroundColor: filterCompletion === 'incomplete' ? buttonBg : subtleBackground,
+                                        color: filterCompletion === 'incomplete' ? buttonColor : centerChannelColor,
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        userSelect: 'none'
+                                    }}
+                                >
+                                    Incomplete
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     {showTodoForm && (
                         <div style={{ marginBottom: '20px' }}>
@@ -854,6 +964,7 @@ class TodoSidebar extends React.Component<any> {
                             onToggleAssignee={this.toggleAssignee}
                             onUpdateText={this.updateTodoText}
                             onDeleteGroup={() => this.deleteGroup(group.id)}
+                            onUpdateGroupName={this.updateGroupName}
                             onDragStart={this.handleDragStart}
                             onDragEnd={this.handleDragEnd}
                             onDrop={this.handleDrop}
@@ -932,6 +1043,7 @@ const TodoGroupSection: React.FC<{
     onToggleAssignee: (task: TodoItem, userId: string) => void;
     onUpdateText: (task: TodoItem, newText: string) => void;
     onDeleteGroup?: () => void;
+    onUpdateGroupName?: (group: TodoGroup, newName: string) => void;
     onDragStart: (task: TodoItem) => void;
     onDragEnd: () => void;
     onDrop: (groupId: string | null) => void;
@@ -950,9 +1062,12 @@ const TodoGroupSection: React.FC<{
     isDropTargetGroup: boolean;
     dropPositionGroup: 'before' | 'after' | null;
     theme: any;
-}> = ({ title, groupId, group, tasks, channelMembers, onToggle, onDelete, onToggleAssignee, onUpdateText, onDeleteGroup, onDragStart, onDragEnd, onDrop, onDragOverTodo, onDragLeaveTodo, onDropOnTodo, isDragging, dragOverTodoId, dragOverPosition, onDragStartGroup, onDragEndGroup, onDragOverGroup, onDragLeaveGroup, onDropOnGroup, isDraggingGroup, isDropTargetGroup, dropPositionGroup, theme }) => {
+}> = ({ title, groupId, group, tasks, channelMembers, onToggle, onDelete, onToggleAssignee, onUpdateText, onDeleteGroup, onUpdateGroupName, onDragStart, onDragEnd, onDrop, onDragOverTodo, onDragLeaveTodo, onDropOnTodo, isDragging, dragOverTodoId, dragOverPosition, onDragStartGroup, onDragEndGroup, onDragOverGroup, onDragLeaveGroup, onDropOnGroup, isDraggingGroup, isDropTargetGroup, dropPositionGroup, theme }) => {
     const [isDragOver, setIsDragOver] = React.useState(false);
     const [isDraggingThis, setIsDraggingThis] = React.useState(false);
+    const [isEditingName, setIsEditingName] = React.useState(false);
+    const [editName, setEditName] = React.useState(title);
+    const nameInputRef = React.useRef<HTMLInputElement>(null);
 
     const centerChannelBg = theme?.centerChannelBg || '#ffffff';
     const centerChannelColor = theme?.centerChannelColor || '#333333';
@@ -989,6 +1104,13 @@ const TodoGroupSection: React.FC<{
             setIsDragOver(false);
         }
     }, [isDragging]);
+
+    React.useEffect(() => {
+        if (isEditingName && nameInputRef.current) {
+            nameInputRef.current.focus();
+            nameInputRef.current.select();
+        }
+    }, [isEditingName]);
 
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
@@ -1060,6 +1182,33 @@ const TodoGroupSection: React.FC<{
         onDropOnGroup(group, dropPositionGroup);
     };
 
+    const handleNameClick = () => {
+        if (group && onUpdateGroupName) {
+            setIsEditingName(true);
+            setEditName(title);
+        }
+    };
+
+    const handleSaveNameEdit = () => {
+        if (group && onUpdateGroupName && editName.trim() && editName !== title) {
+            onUpdateGroupName(group, editName.trim());
+        }
+        setIsEditingName(false);
+    };
+
+    const handleCancelNameEdit = () => {
+        setEditName(title);
+        setIsEditingName(false);
+    };
+
+    const handleNameKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            handleSaveNameEdit();
+        } else if (e.key === 'Escape') {
+            handleCancelNameEdit();
+        }
+    };
+
     const isUngrouped = groupId === null;
     const hasContent = tasks.length > 0;
     const isCreatedGroup = onDeleteGroup !== undefined;
@@ -1115,7 +1264,7 @@ const TodoGroupSection: React.FC<{
                         justifyContent: 'space-between',
                         alignItems: 'center'
                     }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
                             {group && (
                                 <div
                                     style={{
@@ -1130,16 +1279,56 @@ const TodoGroupSection: React.FC<{
                                     ⋮⋮
                                 </div>
                             )}
-                            <h4 style={{
-                                margin: 0,
-                                fontSize: '13px',
-                                fontWeight: 600,
-                                textTransform: 'uppercase',
-                                color: subtleText,
-                                letterSpacing: '0.5px'
-                            }}>
-                                {title}
-                            </h4>
+                            {isEditingName ? (
+                                <input
+                                    ref={nameInputRef}
+                                    type="text"
+                                    value={editName}
+                                    onChange={(e) => setEditName(e.target.value)}
+                                    onKeyDown={handleNameKeyDown}
+                                    onBlur={handleSaveNameEdit}
+                                    style={{
+                                        padding: '4px 8px',
+                                        fontSize: '13px',
+                                        fontWeight: 600,
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.5px',
+                                        border: `2px solid ${buttonBg}`,
+                                        borderRadius: '3px',
+                                        backgroundColor: centerChannelBg,
+                                        color: centerChannelColor,
+                                        outline: 'none'
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                />
+                            ) : (
+                                <h4
+                                    onClick={handleNameClick}
+                                    style={{
+                                        margin: 0,
+                                        fontSize: '13px',
+                                        fontWeight: 600,
+                                        textTransform: 'uppercase',
+                                        color: subtleText,
+                                        letterSpacing: '0.5px',
+                                        cursor: (group && onUpdateGroupName) ? 'text' : 'default',
+                                        padding: '4px 8px',
+                                        borderRadius: '3px',
+                                        transition: 'background-color 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        if (group && onUpdateGroupName) {
+                                            e.currentTarget.style.backgroundColor = adjustOpacity(centerChannelColor, centerChannelBg, 0.05);
+                                        }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.backgroundColor = 'transparent';
+                                    }}
+                                    title={(group && onUpdateGroupName) ? 'Click to edit' : ''}
+                                >
+                                    {title}
+                                </h4>
+                            )}
                         </div>
                         {onDeleteGroup && (
                             <button
@@ -1226,7 +1415,7 @@ const TodoGroupSection: React.FC<{
                     alignItems: 'center',
                     marginBottom: tasks.length > 0 ? '12px' : '0'
                 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
                         {group && (
                             <div
                                 style={{
@@ -1241,16 +1430,56 @@ const TodoGroupSection: React.FC<{
                                 ⋮⋮
                             </div>
                         )}
-                        <h4 style={{
-                            margin: 0,
-                            fontSize: '13px',
-                            fontWeight: 600,
-                            textTransform: 'uppercase',
-                            color: subtleText,
-                            letterSpacing: '0.5px'
-                        }}>
-                            {title}
-                        </h4>
+                        {isEditingName ? (
+                            <input
+                                ref={nameInputRef}
+                                type="text"
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                onKeyDown={handleNameKeyDown}
+                                onBlur={handleSaveNameEdit}
+                                style={{
+                                    padding: '4px 8px',
+                                    fontSize: '13px',
+                                    fontWeight: 600,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.5px',
+                                    border: `2px solid ${buttonBg}`,
+                                    borderRadius: '3px',
+                                    backgroundColor: centerChannelBg,
+                                    color: centerChannelColor,
+                                    outline: 'none'
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                            />
+                        ) : (
+                            <h4
+                                onClick={handleNameClick}
+                                style={{
+                                    margin: 0,
+                                    fontSize: '13px',
+                                    fontWeight: 600,
+                                    textTransform: 'uppercase',
+                                    color: subtleText,
+                                    letterSpacing: '0.5px',
+                                    cursor: (group && onUpdateGroupName) ? 'text' : 'default',
+                                    padding: '4px 8px',
+                                    borderRadius: '3px',
+                                    transition: 'background-color 0.2s'
+                                }}
+                                onMouseEnter={(e) => {
+                                    if (group && onUpdateGroupName) {
+                                        e.currentTarget.style.backgroundColor = adjustOpacity(centerChannelColor, centerChannelBg, 0.05);
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                                title={(group && onUpdateGroupName) ? 'Click to edit' : ''}
+                            >
+                                {title}
+                            </h4>
+                        )}
                     </div>
                     {onDeleteGroup && (
                         <button
