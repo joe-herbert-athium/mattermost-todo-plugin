@@ -820,7 +820,7 @@ class TodoSidebar extends React.Component<any> {
                                 transition: 'all 0.2s'
                             }}
                         >
-                            {showTodoForm ? '- Add Task' : '+ Add Task'}
+                            {showTodoForm ? '− Add Task' : '+ Add Task'}
                         </button>
                         <button
                             onClick={() => this.setState({ showGroupForm: !showGroupForm, showTodoForm: false, showFilters: false })}
@@ -1850,7 +1850,7 @@ const TodoItemComponent: React.FC<{
     };
 
     const borderColor = adjustOpacity(centerChannelColor, centerChannelBg, 0.1);
-    const completedBg = adjustOpacity(centerChannelColor, centerChannelBg, 0.03);
+    const completedBg = adjustOpacity(centerChannelColor, centerChannelBg, 0.05);
     const completedText = adjustOpacity(centerChannelColor, centerChannelBg, 0.5);
     const dragHandleColor = adjustOpacity(centerChannelColor, centerChannelBg, 0.4);
     const hoverBg = adjustOpacity(centerChannelColor, centerChannelBg, 0.05);
@@ -1988,6 +1988,13 @@ const TodoItemComponent: React.FC<{
                 onDragOver={handleItemDragOver}
                 onDragLeave={handleItemDragLeave}
                 onDrop={handleItemDrop}
+                onClick={(e) => {
+                    // Toggle completion when clicking on the background
+                    const target = e.target as HTMLElement;
+                    if (target === e.currentTarget || target.hasAttribute('data-task-background')) {
+                        onToggle(task);
+                    }
+                }}
                 style={{
                     padding: '4px 8px',
                     backgroundColor: task.completed ? completedBg : centerChannelBg,
@@ -1995,13 +2002,13 @@ const TodoItemComponent: React.FC<{
                     marginBottom: '8px',
                     border: isDragging ? `2px dashed ${buttonBg}` : `1px solid ${borderColor}`,
                     opacity: isDragging ? 0.4 : 1,
-                    cursor: 'grab',
+                    cursor: 'pointer',
                     transition: 'opacity 0.2s ease, border 0.2s ease',
                     userSelect: 'none',
                     position: 'relative'
                 } as React.CSSProperties}
             >
-                <div style={{ display: 'flex', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center' }} data-task-background="true">
                     <input
                         type="checkbox"
                         checked={task.completed}
@@ -2016,7 +2023,7 @@ const TodoItemComponent: React.FC<{
                         }}
                     />
 
-                    <div style={{ flex: 1 }}>
+                    <div style={{ flex: 1 }} data-task-background="true">
                         {isEditing ? (
                             <input
                                 ref={inputRef}
@@ -2038,8 +2045,11 @@ const TodoItemComponent: React.FC<{
                                 onClick={(e) => e.stopPropagation()}
                             />
                         ) : (
-                            <div
-                                onClick={handleTextClick}
+                            <span
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleTextClick();
+                                }}
                                 style={{
                                     textDecoration: task.completed ? 'line-through' : 'none',
                                     color: task.completed ? completedText : centerChannelColor,
@@ -2049,7 +2059,8 @@ const TodoItemComponent: React.FC<{
                                     cursor: task.completed ? 'default' : 'text',
                                     padding: '4px 8px',
                                     borderRadius: '3px',
-                                    transition: 'background-color 0.2s'
+                                    transition: 'background-color 0.2s',
+                                    display: 'inline-block'
                                 }}
                                 onMouseEnter={(e) => {
                                     if (!task.completed) {
@@ -2062,7 +2073,7 @@ const TodoItemComponent: React.FC<{
                                 title={task.completed ? '' : 'Click to edit'}
                             >
                                 {task.text}
-                            </div>
+                            </span>
                         )}
                     </div>
 
