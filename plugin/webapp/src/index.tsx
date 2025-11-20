@@ -73,10 +73,13 @@ class TodoSidebar extends React.Component<any> {
         channelMembers: [] as any[],
         showGroupForm: false,
         draggedTodo: null as TodoItem | null,
+        filterMyTasks: false,
+        currentUserId: '',
     };
 
     componentDidMount() {
         console.log('TodoSidebar mounted with props:', this.props);
+        this.loadCurrentUser();
         this.loadTodos();
         this.loadChannelMembers();
     }
@@ -97,6 +100,16 @@ class TodoSidebar extends React.Component<any> {
             props.channel?.id ||
             (window as any).store?.getState()?.entities?.channels?.currentChannelId;
     }
+
+    loadCurrentUser = async () => {
+        try {
+            const response = await fetch('/api/v4/users/me');
+            const user = await response.json();
+            this.setState({ currentUserId: user.id });
+        } catch (error) {
+            console.error('Error loading current user:', error);
+        }
+    };
 
     loadTodos = async () => {
         const channelId = this.getChannelId();
@@ -316,16 +329,28 @@ class TodoSidebar extends React.Component<any> {
     };
 
     groupedTodos = (groupId: string | null) => {
-        return this.state.todos.filter(todo => {
+        const { filterMyTasks, currentUserId } = this.state;
+
+        let filtered = this.state.todos.filter(todo => {
             if (groupId === null) {
                 return !todo.group_id;
             }
             return todo.group_id === groupId;
         });
+
+        // Apply "My Tasks" filter if enabled
+        if (filterMyTasks && currentUserId) {
+            filtered = filtered.filter(todo => {
+                const assigneeIds = todo.assignee_ids || [];
+                return assigneeIds.includes(currentUserId);
+            });
+        }
+
+        return filtered;
     };
 
     render() {
-        const { newTodoText, newGroupName, selectedGroup, groups, channelMembers, showGroupForm, draggedTodo } = this.state;
+        const { newTodoText, newGroupName, selectedGroup, groups, channelMembers, showGroupForm, draggedTodo, filterMyTasks } = this.state;
         const channelName = this.props.channelDisplayName || 'Channel';
 
         return (
@@ -341,6 +366,37 @@ class TodoSidebar extends React.Component<any> {
                     style={{ flex: 1, overflowY: 'auto', padding: '20px' }}
                     onDragOver={(e) => e.preventDefault()}
                 >
+                    {/* Filter Toggle */}
+                    <div style={{
+                        marginBottom: '20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '8px 12px',
+                        backgroundColor: '#f5f5f5',
+                        borderRadius: '4px'
+                    }}>
+                        <input
+                            type="checkbox"
+                            id="filter-my-tasks"
+                            checked={filterMyTasks}
+                            onChange={(e) => this.setState({ filterMyTasks: e.target.checked })}
+                            style={{ cursor: 'pointer' }}
+                        />
+                        <label
+                            htmlFor="filter-my-tasks"
+                            style={{
+                                cursor: 'pointer',
+                                fontSize: '14px',
+                                fontWeight: 500,
+                                color: '#333',
+                                userSelect: 'none'
+                            }}
+                        >
+                            Show only my tasks
+                        </label>
+                    </div>
+
                     <div style={{ marginBottom: '20px' }}>
                         <input
                             type="text"
