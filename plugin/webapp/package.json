@@ -1,5 +1,6 @@
 {
-  "name": "mattermost-channel-todo-webapp",
+  "name": "mattermost-channel-task-webapp",
+  "author": "Joe Herbert",
   "version": "1.0.0",
   "scripts": {
     "build": "webpack --mode=production",

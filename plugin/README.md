@@ -1,21 +1,21 @@
-# Mattermost Channel Todo List Plugin
+# Mattermost Channel Task List Plugin
 
-A Mattermost plugin that adds a comprehensive todo list feature to each channel with grouping and assignment capabilities.
+A Mattermost plugin that adds a comprehensive task list feature to each channel with grouping and assignment capabilities.
 
 ## Features
 
-- **Channel-Specific Todo Lists**: Each channel has its own independent todo list
-- **Header Button**: Quick access button in the channel header showing the count of incomplete todos
-- **Right-Hand Sidebar**: Full-featured todo list interface that opens in the right sidebar
-- **Todo Management**: Add, complete, and delete todo items
-- **Grouping**: Organize todos into custom groups
-- **Assignment**: Assign todos to channel members
-- **Persistent Storage**: All todos are stored in Mattermost's key-value store
+- **Channel-Specific Task Lists**: Each channel has its own independent task list
+- **Header Button**: Quick access button in the channel header showing the count of incomplete tasks
+- **Right-Hand Sidebar**: Full-featured task list interface that opens in the right sidebar
+- **Task Management**: Add, complete, and delete task items
+- **Grouping**: Organize tasks into custom groups
+- **Assignment**: Assign tasks to channel members
+- **Persistent Storage**: All tasks are stored in Mattermost's key-value store
 
 ## Project Structure
 
 ```
-mattermost-channel-todo/
+mattermost-channel-task/
 ├── plugin.json              # Plugin manifest
 ├── server/
 │   └── plugin.go           # Backend Go code
@@ -40,34 +40,34 @@ mattermost-channel-todo/
 
 ## Usage
 
-### Accessing the Todo List
+### Accessing the Task List
 
 1. In any channel, look for the checkmark (✓) icon with a number in the channel header
-2. Click the icon to open the todo sidebar on the right
+2. Click the icon to open the task sidebar on the right
 
-### Adding Todos
+### Adding Tasks
 
-1. Type your todo text in the input field
+1. Type your task text in the input field
 2. Optionally select a group from the dropdown
-3. Click "Add Todo" or press Enter
+3. Click "Add Task" or press Enter
 
-### Managing Todos
+### Managing Tasks
 
-- **Complete/Uncomplete**: Click the checkbox next to any todo
-- **Assign**: Select a channel member from the dropdown next to each todo
-- **Delete**: Click the × button to remove a todo
+- **Complete/Uncomplete**: Click the checkbox next to any task
+- **Assign**: Select a channel member from the dropdown next to each task
+- **Delete**: Click the × button to remove a task
 
 ### Creating Groups
 
 1. Click "Add Group" button
 2. Enter a group name
 3. Click "Create Group"
-4. When adding new todos, select the group from the dropdown
+4. When adding new tasks, select the group from the dropdown
 
 ### Deleting Groups
 
 - Click "Delete Group" button next to the group name
-- All todos in that group will be moved to "Ungrouped"
+- All tasks in that group will be moved to "Ungrouped"
 
 ## Development
 
@@ -93,25 +93,25 @@ make
 
 The plugin exposes the following REST API endpoints:
 
-#### Get Todos
+#### Get Tasks
 ```
-GET /plugins/com.mattermost.channel-todo/api/v1/todos?channel_id={channelId}
+GET /plugins/com.mattermost.channel-task/api/v1/tasks?channel_id={channelId}
 ```
 
-#### Create Todo
+#### Create Task
 ```
-POST /plugins/com.mattermost.channel-todo/api/v1/todos?channel_id={channelId}
+POST /plugins/com.mattermost.channel-task/api/v1/tasks?channel_id={channelId}
 Body: {
-  "text": "Todo text",
+  "text": "Task text",
   "group_id": "optional_group_id"
 }
 ```
 
-#### Update Todo
+#### Update Task
 ```
-PUT /plugins/com.mattermost.channel-todo/api/v1/todos?channel_id={channelId}
+PUT /plugins/com.mattermost.channel-task/api/v1/tasks?channel_id={channelId}
 Body: {
-  "id": "todo_id",
+  "id": "task_id",
   "text": "Updated text",
   "completed": true,
   "assignee_id": "user_id",
@@ -119,14 +119,14 @@ Body: {
 }
 ```
 
-#### Delete Todo
+#### Delete Task
 ```
-DELETE /plugins/com.mattermost.channel-todo/api/v1/todos?channel_id={channelId}&id={todoId}
+DELETE /plugins/com.mattermost.channel-task/api/v1/tasks?channel_id={channelId}&id={taskId}
 ```
 
 #### Create Group
 ```
-POST /plugins/com.mattermost.channel-todo/api/v1/groups?channel_id={channelId}
+POST /plugins/com.mattermost.channel-task/api/v1/groups?channel_id={channelId}
 Body: {
   "name": "Group name"
 }
@@ -134,12 +134,12 @@ Body: {
 
 #### Delete Group
 ```
-DELETE /plugins/com.mattermost.channel-todo/api/v1/groups?channel_id={channelId}&id={groupId}
+DELETE /plugins/com.mattermost.channel-task/api/v1/groups?channel_id={channelId}&id={groupId}
 ```
 
 ## Data Structure
 
-### TodoItem
+### TaskItem
 ```typescript
 {
   id: string;
@@ -152,7 +152,7 @@ DELETE /plugins/com.mattermost.channel-todo/api/v1/groups?channel_id={channelId}
 }
 ```
 
-### TodoGroup
+### TaskGroup
 ```typescript
 {
   id: string;
@@ -164,10 +164,10 @@ DELETE /plugins/com.mattermost.channel-todo/api/v1/groups?channel_id={channelId}
 
 All data is stored in Mattermost's built-in key-value store with keys in the format:
 ```
-todos_{channelId}
+tasks_{channelId}
 ```
 
-Each key contains a JSON object with the complete todo list and groups for that channel.
+Each key contains a JSON object with the complete task list and groups for that channel.
 
 ## Contributing
 

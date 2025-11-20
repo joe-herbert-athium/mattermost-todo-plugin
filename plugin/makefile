@@ -1,4 +1,4 @@
-PLUGIN_ID = com.mattermost.channel-todo
+PLUGIN_ID = com.mattermost.channel-task
 PLUGIN_VERSION = 1.0.0
 
 .PHONY: all

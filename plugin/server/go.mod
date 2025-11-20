@@ -1,4 +1,4 @@
-module github.com/joe-herbert-athium/mattermost-todo-plugin/server
+module github.com/joe-herbert-athium/mattermost-task-plugin/server
 
 go 1.25.0
 

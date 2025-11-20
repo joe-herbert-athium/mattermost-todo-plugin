@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 // Types
-interface TodoItem {
+interface TaskItem {
     id: string;
     text: string;
     completed: boolean;
@@ -11,15 +11,15 @@ interface TodoItem {
     completed_at?: string;
 }
 
-interface TodoGroup {
+interface TaskGroup {
     id: string;
     name: string;
     order?: string;
 }
 
-interface ChannelTodoList {
-    items: TodoItem[];
-    groups: TodoGroup[];
+interface ChannelTaskList {
+    items: TaskItem[];
+    groups: TaskGroup[];
 }
 
 // Main Plugin Class
@@ -68,16 +68,16 @@ export default class Plugin {
         };
 
         // Wrapper component to provide channel change callback
-        const TodoSidebarWrapper = (props: any) => {
+        const TaskSidebarWrapper = (props: any) => {
             const onChannelChange = (callback: () => void) => {
                 this.channelChangeCallbacks.push(callback);
             };
 
-            return <TodoSidebar {...props} onChannelChange={onChannelChange} />;
+            return <TaskSidebar {...props} onChannelChange={onChannelChange} />;
         };
 
         const {toggleRHSPlugin} = registry.registerRightHandSidebarComponent(
-            TodoSidebarWrapper,
+            TaskSidebarWrapper,
             DynamicTitle
         );
 
@@ -107,21 +107,21 @@ export default class Plugin {
 }
 
 // Sidebar Component (for RHS)
-class TodoSidebar extends React.Component<any> {
+class TaskSidebar extends React.Component<any> {
     state = {
-        tasks: [] as TodoItem[],
-        groups: [] as TodoGroup[],
-        newTodoText: '',
+        tasks: [] as TaskItem[],
+        groups: [] as TaskGroup[],
+        newTaskText: '',
         newGroupName: '',
         selectedGroup: '',
         channelMembers: [] as any[],
         showGroupForm: false,
-        showTodoForm: false,
+        showTaskForm: false,
         showFilters: false,
-        draggedTodo: null as TodoItem | null,
-        dragOverTodoId: null as string | null,
+        draggedTask: null as TaskItem | null,
+        dragOverTaskId: null as string | null,
         dragOverPosition: null as 'before' | 'after' | null,
-        draggedGroup: null as TodoGroup | null,
+        draggedGroup: null as TaskGroup | null,
         dragOverGroupId: null as string | null,
         dragOverGroupPosition: null as 'before' | 'after' | null,
         filterMyTasks: false,
@@ -152,17 +152,17 @@ class TodoSidebar extends React.Component<any> {
     };
 
     componentDidMount() {
-        console.log('TodoSidebar mounted with props:', this.props);
+        console.log('TaskSidebar mounted with props:', this.props);
         this.loadFilterSettings();
         this.loadCurrentUser();
-        this.loadTodos();
+        this.loadTasks();
         this.loadChannelMembers();
 
         // Subscribe to channel changes if onChannelChange prop is provided
         if (this.props.onChannelChange) {
             this.props.onChannelChange(() => {
                 console.log('Channel changed, reloading data');
-                this.loadTodos();
+                this.loadTasks();
                 this.loadChannelMembers();
             });
         }
@@ -179,7 +179,7 @@ class TodoSidebar extends React.Component<any> {
         if (prevChannelId && currentChannelId && prevChannelId !== currentChannelId) {
             console.log('Channel changed via props from', prevChannelId, 'to', currentChannelId);
             this.setState({ _lastChannelId: currentChannelId });
-            this.loadTodos();
+            this.loadTasks();
             this.loadChannelMembers();
         }
     }
@@ -192,7 +192,7 @@ class TodoSidebar extends React.Component<any> {
 
     loadFilterSettings = () => {
         try {
-            const savedFilters = localStorage.getItem('mattermost-todo-filters');
+            const savedFilters = localStorage.getItem('mattermost-task-filters');
             if (savedFilters) {
                 const filters = JSON.parse(savedFilters);
                 this.setState({
@@ -213,7 +213,7 @@ class TodoSidebar extends React.Component<any> {
                 filterCompletion: this.state.filterCompletion,
                 showFilters: this.state.showFilters
             };
-            localStorage.setItem('mattermost-todo-filters', JSON.stringify(filters));
+            localStorage.setItem('mattermost-task-filters', JSON.stringify(filters));
         } catch (error) {
             console.error('Error saving filter settings:', error);
         }
@@ -229,14 +229,14 @@ class TodoSidebar extends React.Component<any> {
         }
     };
 
-    loadTodos = async () => {
+    loadTasks = async () => {
         const channelId = this.getChannelId();
         console.log('Loading tasks for channel:', channelId);
         if (!channelId) return;
 
         try {
-            const response = await fetch(`/plugins/com.mattermost.channel-todo/api/v1/todos?channel_id=${channelId}`);
-            const data: ChannelTodoList = await response.json();
+            const response = await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`);
+            const data: ChannelTaskList = await response.json();
             this.setState({ tasks: data.items, groups: data.groups });
         } catch (error) {
             console.error('Error loading tasks:', error);
@@ -261,19 +261,19 @@ class TodoSidebar extends React.Component<any> {
         }
     };
 
-    addTodo = async () => {
-        const { newTodoText, selectedGroup } = this.state;
+    addTask = async () => {
+        const { newTaskText, selectedGroup } = this.state;
         const channelId = this.getChannelId();
-        console.log('Adding task:', newTodoText, 'for channel:', channelId);
-        if (!newTodoText.trim() || !channelId) return;
+        console.log('Adding task:', newTaskText, 'for channel:', channelId);
+        if (!newTaskText.trim() || !channelId) return;
 
         try {
             console.log('Sending POST request to add task');
-            const response = await fetch(`/plugins/com.mattermost.channel-todo/api/v1/todos?channel_id=${channelId}`, {
+            const response = await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    text: newTodoText,
+                    text: newTaskText,
                     completed: false,
                     group_id: selectedGroup || undefined
                 })
@@ -281,8 +281,8 @@ class TodoSidebar extends React.Component<any> {
 
             console.log('Add task response:', response.status, response.ok);
             if (response.ok) {
-                this.setState({ newTodoText: '' });
-                this.loadTodos();
+                this.setState({ newTaskText: '' });
+                this.loadTasks();
             } else {
                 console.error('Failed to add task:', await response.text());
             }
@@ -291,12 +291,12 @@ class TodoSidebar extends React.Component<any> {
         }
     };
 
-    toggleTodo = async (task: TodoItem) => {
+    toggleTask = async (task: TaskItem) => {
         const channelId = this.getChannelId();
         if (!channelId) return;
 
         try {
-            await fetch(`/plugins/com.mattermost.channel-todo/api/v1/todos?channel_id=${channelId}`, {
+            await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -304,18 +304,18 @@ class TodoSidebar extends React.Component<any> {
                     completed: !task.completed
                 })
             });
-            this.loadTodos();
+            this.loadTasks();
         } catch (error) {
             console.error('Error toggling task:', error);
         }
     };
 
-    updateTodoText = async (task: TodoItem, newText: string) => {
+    updateTaskText = async (task: TaskItem, newText: string) => {
         const channelId = this.getChannelId();
         if (!channelId || !newText.trim()) return;
 
         try {
-            await fetch(`/plugins/com.mattermost.channel-todo/api/v1/todos?channel_id=${channelId}`, {
+            await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -323,27 +323,27 @@ class TodoSidebar extends React.Component<any> {
                     text: newText
                 })
             });
-            this.loadTodos();
+            this.loadTasks();
         } catch (error) {
             console.error('Error updating task text:', error);
         }
     };
 
-    deleteTodo = async (todoId: string) => {
+    deleteTask = async (taskId: string) => {
         const channelId = this.getChannelId();
         if (!channelId) return;
 
         try {
-            await fetch(`/plugins/com.mattermost.channel-todo/api/v1/todos?channel_id=${channelId}&id=${todoId}`, {
+            await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}&id=${taskId}`, {
                 method: 'DELETE'
             });
-            this.loadTodos();
+            this.loadTasks();
         } catch (error) {
             console.error('Error deleting task:', error);
         }
     };
 
-    toggleAssignee = async (task: TodoItem, userId: string) => {
+    toggleAssignee = async (task: TaskItem, userId: string) => {
         const channelId = this.getChannelId();
         if (!channelId) return;
 
@@ -357,7 +357,7 @@ class TodoSidebar extends React.Component<any> {
         }
 
         try {
-            await fetch(`/plugins/com.mattermost.channel-todo/api/v1/todos?channel_id=${channelId}`, {
+            await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -365,7 +365,7 @@ class TodoSidebar extends React.Component<any> {
                     assignee_ids: newAssignees
                 })
             });
-            this.loadTodos();
+            this.loadTasks();
         } catch (error) {
             console.error('Error toggling assignee:', error);
         }
@@ -379,7 +379,7 @@ class TodoSidebar extends React.Component<any> {
 
         try {
             console.log('Sending POST request to add group');
-            const response = await fetch(`/plugins/com.mattermost.channel-todo/api/v1/groups?channel_id=${channelId}`, {
+            const response = await fetch(`/plugins/com.mattermost.channel-task/api/v1/groups?channel_id=${channelId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: newGroupName })
@@ -387,7 +387,7 @@ class TodoSidebar extends React.Component<any> {
             console.log('Add group response:', response.status, response.ok);
             if (response.ok) {
                 this.setState({ newGroupName: '' });
-                this.loadTodos();
+                this.loadTasks();
             } else {
                 console.error('Failed to add group:', await response.text());
             }
@@ -403,7 +403,7 @@ class TodoSidebar extends React.Component<any> {
         const tasksInGroup = this.state.tasks.filter(t => t.group_id === groupId);
         const taskCount = tasksInGroup.length;
 
-        const dontWarnAgain = localStorage.getItem('mattermost-todo-dont-warn-delete-group') === 'true';
+        const dontWarnAgain = localStorage.getItem('mattermost-task-dont-warn-delete-group') === 'true';
 
         if (dontWarnAgain || taskCount === 0) {
             this.deleteGroup(groupId);
@@ -423,18 +423,18 @@ class TodoSidebar extends React.Component<any> {
             // Delete all tasks in the group
             const tasksInGroup = this.state.tasks.filter(t => t.group_id === groupId);
             for (const task of tasksInGroup) {
-                await fetch(`/plugins/com.mattermost.channel-todo/api/v1/todos?channel_id=${channelId}&id=${task.id}`, {
+                await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}&id=${task.id}`, {
                     method: 'DELETE'
                 });
             }
 
             // Delete the group
-            await fetch(`/plugins/com.mattermost.channel-todo/api/v1/groups?channel_id=${channelId}&id=${groupId}`, {
+            await fetch(`/plugins/com.mattermost.channel-task/api/v1/groups?channel_id=${channelId}&id=${groupId}`, {
                 method: 'DELETE'
             });
 
             this.setState({ deleteGroupWarningShown: false, groupToDelete: null });
-            this.loadTodos();
+            this.loadTasks();
         } catch (error) {
             console.error('Error deleting group:', error);
         }
@@ -446,19 +446,19 @@ class TodoSidebar extends React.Component<any> {
 
     deleteGroupWithPreference = (dontWarnAgain: boolean) => {
         if (dontWarnAgain) {
-            localStorage.setItem('mattermost-todo-dont-warn-delete-group', 'true');
+            localStorage.setItem('mattermost-task-dont-warn-delete-group', 'true');
         }
         if (this.state.groupToDelete) {
             this.deleteGroup(this.state.groupToDelete.id);
         }
     };
 
-    updateGroupName = async (group: TodoGroup, newName: string) => {
+    updateGroupName = async (group: TaskGroup, newName: string) => {
         const channelId = this.getChannelId();
         if (!channelId || !newName.trim()) return;
 
         try {
-            await fetch(`/plugins/com.mattermost.channel-todo/api/v1/groups?channel_id=${channelId}`, {
+            await fetch(`/plugins/com.mattermost.channel-task/api/v1/groups?channel_id=${channelId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -466,63 +466,63 @@ class TodoSidebar extends React.Component<any> {
                     name: newName
                 })
             });
-            this.loadTodos();
+            this.loadTasks();
         } catch (error) {
             console.error('Error updating group name:', error);
         }
     };
 
-    handleDragStart = (task: TodoItem) => {
+    handleDragStart = (task: TaskItem) => {
         console.log('Parent: handleDragStart called for task:', task.text);
         setTimeout(() => {
-            this.setState({ draggedTodo: task });
+            this.setState({ draggedTask: task });
         }, 0);
     };
 
     handleDragEnd = () => {
         console.log('handleDragEnd - clearing dragged task');
         this.setState({
-            draggedTodo: null,
-            dragOverTodoId: null,
+            draggedTask: null,
+            dragOverTaskId: null,
             dragOverPosition: null
         });
     };
 
-    handleDragOverTodo = (todoId: string, position: 'before' | 'after') => {
-        if (this.state.draggedTodo?.id === todoId) {
+    handleDragOverTask = (taskId: string, position: 'before' | 'after') => {
+        if (this.state.draggedTask?.id === taskId) {
             return;
         }
         this.setState({
-            dragOverTodoId: todoId,
+            dragOverTaskId: taskId,
             dragOverPosition: position
         });
     };
 
-    handleDragLeaveTodo = () => {
+    handleDragLeaveTask = () => {
         this.setState({
-            dragOverTodoId: null,
+            dragOverTaskId: null,
             dragOverPosition: null
         });
     };
 
-    handleDropOnTodo = async (targetTodo: TodoItem, position: 'before' | 'after') => {
-        const { draggedTodo } = this.state;
+    handleDropOnTask = async (targetTask: TaskItem, position: 'before' | 'after') => {
+        const { draggedTask } = this.state;
         const channelId = this.getChannelId();
 
-        console.log('handleDropOnTodo called:', { draggedTodo, targetTodo, position, channelId });
+        console.log('handleDropOnTask called:', { draggedTask, targetTask, position, channelId });
 
-        if (!draggedTodo || !channelId || draggedTodo.id === targetTodo.id) {
+        if (!draggedTask || !channelId || draggedTask.id === targetTask.id) {
             this.setState({
-                draggedTodo: null,
-                dragOverTodoId: null,
+                draggedTask: null,
+                dragOverTaskId: null,
                 dragOverPosition: null
             });
             return;
         }
 
         try {
-            const targetGroupId = targetTodo.group_id || null;
-            const todosInGroup = this.state.tasks
+            const targetGroupId = targetTask.group_id || null;
+            const tasksInGroup = this.state.tasks
                 .filter(t => (t.group_id || null) === targetGroupId)
                 .sort((a, b) => {
                     const aOrder = a.created_at || '';
@@ -530,30 +530,30 @@ class TodoSidebar extends React.Component<any> {
                     return aOrder.localeCompare(bOrder);
                 });
 
-            const targetIndex = todosInGroup.findIndex(t => t.id === targetTodo.id);
+            const targetIndex = tasksInGroup.findIndex(t => t.id === targetTask.id);
 
             let newOrder: string;
             if (position === 'before' && targetIndex > 0) {
-                const prevTodo = todosInGroup[targetIndex - 1];
-                const targetOrder = new Date(targetTodo.created_at).getTime();
-                const prevOrder = new Date(prevTodo.created_at).getTime();
+                const prevTask = tasksInGroup[targetIndex - 1];
+                const targetOrder = new Date(targetTask.created_at).getTime();
+                const prevOrder = new Date(prevTask.created_at).getTime();
                 newOrder = new Date((prevOrder + targetOrder) / 2).toISOString();
-            } else if (position === 'after' && targetIndex < todosInGroup.length - 1) {
-                const nextTodo = todosInGroup[targetIndex + 1];
-                const targetOrder = new Date(targetTodo.created_at).getTime();
-                const nextOrder = new Date(nextTodo.created_at).getTime();
+            } else if (position === 'after' && targetIndex < tasksInGroup.length - 1) {
+                const nextTask = tasksInGroup[targetIndex + 1];
+                const targetOrder = new Date(targetTask.created_at).getTime();
+                const nextOrder = new Date(nextTask.created_at).getTime();
                 newOrder = new Date((targetOrder + nextOrder) / 2).toISOString();
             } else if (position === 'before') {
-                newOrder = new Date(new Date(targetTodo.created_at).getTime() - 1000).toISOString();
+                newOrder = new Date(new Date(targetTask.created_at).getTime() - 1000).toISOString();
             } else {
-                newOrder = new Date(new Date(targetTodo.created_at).getTime() + 1000).toISOString();
+                newOrder = new Date(new Date(targetTask.created_at).getTime() + 1000).toISOString();
             }
 
-            const response = await fetch(`/plugins/com.mattermost.channel-todo/api/v1/todos?channel_id=${channelId}`, {
+            const response = await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    ...draggedTodo,
+                    ...draggedTask,
                     group_id: targetGroupId || undefined,
                     created_at: newOrder
                 })
@@ -562,68 +562,68 @@ class TodoSidebar extends React.Component<any> {
             if (response.ok) {
                 console.log('Task reordered successfully');
                 this.setState({
-                    draggedTodo: null,
-                    dragOverTodoId: null,
+                    draggedTask: null,
+                    dragOverTaskId: null,
                     dragOverPosition: null
                 });
-                this.loadTodos();
+                this.loadTasks();
             } else {
                 console.error('Failed to reorder task:', response.status);
             }
         } catch (error) {
             console.error('Error reordering task:', error);
             this.setState({
-                draggedTodo: null,
-                dragOverTodoId: null,
+                draggedTask: null,
+                dragOverTaskId: null,
                 dragOverPosition: null
             });
         }
     };
 
     handleDrop = async (targetGroupId: string | null) => {
-        const { draggedTodo } = this.state;
+        const { draggedTask } = this.state;
         const channelId = this.getChannelId();
 
-        console.log('handleDrop called:', { draggedTodo, targetGroupId, channelId });
+        console.log('handleDrop called:', { draggedTask, targetGroupId, channelId });
 
-        if (!draggedTodo || !channelId) {
+        if (!draggedTask || !channelId) {
             console.log('No dragged task or channel ID');
             return;
         }
 
-        const currentGroupId = draggedTodo.group_id || null;
+        const currentGroupId = draggedTask.group_id || null;
         if (currentGroupId === targetGroupId) {
             console.log('Same group, no update needed');
-            this.setState({ draggedTodo: null });
+            this.setState({ draggedTask: null });
             return;
         }
 
         console.log('Updating task group from', currentGroupId, 'to', targetGroupId);
 
         try {
-            const response = await fetch(`/plugins/com.mattermost.channel-todo/api/v1/todos?channel_id=${channelId}`, {
+            const response = await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    ...draggedTodo,
+                    ...draggedTask,
                     group_id: targetGroupId || undefined
                 })
             });
 
             if (response.ok) {
                 console.log('Task updated successfully');
-                this.setState({ draggedTodo: null });
-                this.loadTodos();
+                this.setState({ draggedTask: null });
+                this.loadTasks();
             } else {
                 console.error('Failed to update task:', response.status);
             }
         } catch (error) {
             console.error('Error moving task:', error);
-            this.setState({ draggedTodo: null });
+            this.setState({ draggedTask: null });
         }
     };
 
-    handleDragStartGroup = (group: TodoGroup) => {
+    handleDragStartGroup = (group: TaskGroup) => {
         console.log('handleDragStartGroup called for group:', group.name);
         setTimeout(() => {
             this.setState({ draggedGroup: group });
@@ -656,7 +656,7 @@ class TodoSidebar extends React.Component<any> {
         });
     };
 
-    handleDropOnGroup = async (targetGroup: TodoGroup, position: 'before' | 'after') => {
+    handleDropOnGroup = async (targetGroup: TaskGroup, position: 'before' | 'after') => {
         const { draggedGroup } = this.state;
         const channelId = this.getChannelId();
 
@@ -699,7 +699,7 @@ class TodoSidebar extends React.Component<any> {
                 newOrder = targetOrder + '~';
             }
 
-            const response = await fetch(`/plugins/com.mattermost.channel-todo/api/v1/groups?channel_id=${channelId}`, {
+            const response = await fetch(`/plugins/com.mattermost.channel-task/api/v1/groups?channel_id=${channelId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -715,7 +715,7 @@ class TodoSidebar extends React.Component<any> {
                     dragOverGroupId: null,
                     dragOverGroupPosition: null
                 });
-                this.loadTodos();
+                this.loadTasks();
             } else {
                 console.error('Failed to reorder group:', response.status);
             }
@@ -729,7 +729,7 @@ class TodoSidebar extends React.Component<any> {
         }
     };
 
-    groupedTodos = (groupId: string | null) => {
+    groupedTasks = (groupId: string | null) => {
         const { filterMyTasks, filterCompletion, currentUserId } = this.state;
 
         let filtered = this.state.tasks.filter(task => {
@@ -768,7 +768,7 @@ class TodoSidebar extends React.Component<any> {
     };
 
     render() {
-        const { newTodoText, newGroupName, selectedGroup, channelMembers, showGroupForm, showTodoForm, showFilters, draggedTodo, filterMyTasks, filterCompletion, dragOverTodoId, dragOverPosition, draggedGroup, dragOverGroupId, dragOverGroupPosition, deleteGroupWarningShown, groupToDelete } = this.state;
+        const { newTaskText, newGroupName, selectedGroup, channelMembers, showGroupForm, showTaskForm, showFilters, draggedTask, filterMyTasks, filterCompletion, dragOverTaskId, dragOverPosition, draggedGroup, dragOverGroupId, dragOverGroupPosition, deleteGroupWarningShown, groupToDelete } = this.state;
 
         const theme = this.props.theme || {};
 
@@ -806,24 +806,24 @@ class TodoSidebar extends React.Component<any> {
                         gap: '8px'
                     }}>
                         <button
-                            onClick={() => this.setState({ showTodoForm: !showTodoForm, showGroupForm: false, showFilters: false })}
+                            onClick={() => this.setState({ showTaskForm: !showTaskForm, showGroupForm: false, showFilters: false })}
                             style={{
                                 flex: 1,
                                 padding: '8px 12px',
                                 fontSize: '14px',
                                 fontWeight: 500,
-                                backgroundColor: showTodoForm ? buttonBg : subtleBackground,
-                                color: showTodoForm ? buttonColor : centerChannelColor,
+                                backgroundColor: showTaskForm ? buttonBg : subtleBackground,
+                                color: showTaskForm ? buttonColor : centerChannelColor,
                                 border: `1px solid ${borderColor}`,
                                 borderRadius: '4px',
                                 cursor: 'pointer',
                                 transition: 'all 0.2s'
                             }}
                         >
-                            {showTodoForm ? '− Add Task' : '+ Add Task'}
+                            {showTaskForm ? '− Add Task' : '+ Add Task'}
                         </button>
                         <button
-                            onClick={() => this.setState({ showGroupForm: !showGroupForm, showTodoForm: false, showFilters: false })}
+                            onClick={() => this.setState({ showGroupForm: !showGroupForm, showTaskForm: false, showFilters: false })}
                             style={{
                                 flex: 1,
                                 padding: '8px 12px',
@@ -840,7 +840,7 @@ class TodoSidebar extends React.Component<any> {
                             {showGroupForm ? '− Add Group' : '+ Add Group'}
                         </button>
                         <button
-                            onClick={() => this.setState({ showFilters: !showFilters, showGroupForm: false, showTodoForm: false }, () => this.saveFilterSettings())}
+                            onClick={() => this.setState({ showFilters: !showFilters, showGroupForm: false, showTaskForm: false }, () => this.saveFilterSettings())}
                             style={{
                                 flex: 1,
                                 padding: '8px 12px',
@@ -969,13 +969,13 @@ class TodoSidebar extends React.Component<any> {
                         </div>
                     )}
 
-                    {showTodoForm && (
+                    {showTaskForm && (
                         <div style={{ marginBottom: '20px' }}>
                             <input
                                 type="text"
-                                value={newTodoText}
-                                onChange={(e) => this.setState({ newTodoText: e.target.value })}
-                                onKeyPress={(e) => e.key === 'Enter' && this.addTodo()}
+                                value={newTaskText}
+                                onChange={(e) => this.setState({ newTaskText: e.target.value })}
+                                onKeyPress={(e) => e.key === 'Enter' && this.addTask()}
                                 placeholder="Add new task..."
                                 style={{
                                     width: '100%',
@@ -1009,7 +1009,7 @@ class TodoSidebar extends React.Component<any> {
                                 ))}
                             </select>
                             <button
-                                onClick={this.addTodo}
+                                onClick={this.addTask}
                                 style={{
                                     width: '100%',
                                     padding: '10px',
@@ -1067,27 +1067,27 @@ class TodoSidebar extends React.Component<any> {
                     )}
 
                     {sortedGroups.map(group => (
-                        <TodoGroupSection
+                        <TaskGroupSection
                             key={group.id}
                             title={group.name}
                             groupId={group.id}
                             group={group}
-                            tasks={this.groupedTodos(group.id)}
+                            tasks={this.groupedTasks(group.id)}
                             channelMembers={channelMembers}
-                            onToggle={this.toggleTodo}
-                            onDelete={this.deleteTodo}
+                            onToggle={this.toggleTask}
+                            onDelete={this.deleteTask}
                             onToggleAssignee={this.toggleAssignee}
-                            onUpdateText={this.updateTodoText}
+                            onUpdateText={this.updateTaskText}
                             onDeleteGroup={() => this.confirmDeleteGroup(group.id)}
                             onUpdateGroupName={this.updateGroupName}
                             onDragStart={this.handleDragStart}
                             onDragEnd={this.handleDragEnd}
                             onDrop={this.handleDrop}
-                            onDragOverTodo={this.handleDragOverTodo}
-                            onDragLeaveTodo={this.handleDragLeaveTodo}
-                            onDropOnTodo={this.handleDropOnTodo}
-                            isDragging={!!draggedTodo}
-                            dragOverTodoId={dragOverTodoId}
+                            onDragOverTask={this.handleDragOverTask}
+                            onDragLeaveTask={this.handleDragLeaveTask}
+                            onDropOnTask={this.handleDropOnTask}
+                            isDragging={!!draggedTask}
+                            dragOverTaskId={dragOverTaskId}
                             dragOverPosition={dragOverPosition}
                             onDragStartGroup={this.handleDragStartGroup}
                             onDragEndGroup={this.handleDragEndGroup}
@@ -1101,24 +1101,24 @@ class TodoSidebar extends React.Component<any> {
                         />
                     ))}
 
-                    <TodoGroupSection
+                    <TaskGroupSection
                         title="Ungrouped"
                         groupId={null}
                         group={null}
-                        tasks={this.groupedTodos(null)}
+                        tasks={this.groupedTasks(null)}
                         channelMembers={channelMembers}
-                        onToggle={this.toggleTodo}
-                        onDelete={this.deleteTodo}
+                        onToggle={this.toggleTask}
+                        onDelete={this.deleteTask}
                         onToggleAssignee={this.toggleAssignee}
-                        onUpdateText={this.updateTodoText}
+                        onUpdateText={this.updateTaskText}
                         onDragStart={this.handleDragStart}
                         onDragEnd={this.handleDragEnd}
                         onDrop={this.handleDrop}
-                        onDragOverTodo={this.handleDragOverTodo}
-                        onDragLeaveTodo={this.handleDragLeaveTodo}
-                        onDropOnTodo={this.handleDropOnTodo}
-                        isDragging={!!draggedTodo}
-                        dragOverTodoId={dragOverTodoId}
+                        onDragOverTask={this.handleDragOverTask}
+                        onDragLeaveTask={this.handleDragLeaveTask}
+                        onDropOnTask={this.handleDropOnTask}
+                        isDragging={!!draggedTask}
+                        dragOverTaskId={dragOverTaskId}
                         dragOverPosition={dragOverPosition}
                         onDragStartGroup={this.handleDragStartGroup}
                         onDragEndGroup={this.handleDragEndGroup}
@@ -1141,7 +1141,7 @@ class TodoSidebar extends React.Component<any> {
                         </div>
                     )}
 
-                    {this.state.tasks.length > 0 && sortedGroups.every(g => this.groupedTodos(g.id).length === 0) && this.groupedTodos(null).length === 0 && (
+                    {this.state.tasks.length > 0 && sortedGroups.every(g => this.groupedTasks(g.id).length === 0) && this.groupedTasks(null).length === 0 && (
                         <div style={{
                             textAlign: 'center',
                             padding: '40px 20px',
@@ -1307,37 +1307,37 @@ const DeleteGroupWarning: React.FC<{
 };
 
 // Task Group Section Component
-const TodoGroupSection: React.FC<{
+const TaskGroupSection: React.FC<{
     title: string;
     groupId: string | null;
-    group: TodoGroup | null;
-    tasks: TodoItem[];
+    group: TaskGroup | null;
+    tasks: TaskItem[];
     channelMembers: any[];
-    onToggle: (task: TodoItem) => void;
-    onDelete: (todoId: string) => void;
-    onToggleAssignee: (task: TodoItem, userId: string) => void;
-    onUpdateText: (task: TodoItem, newText: string) => void;
+    onToggle: (task: TaskItem) => void;
+    onDelete: (taskId: string) => void;
+    onToggleAssignee: (task: TaskItem, userId: string) => void;
+    onUpdateText: (task: TaskItem, newText: string) => void;
     onDeleteGroup?: () => void;
-    onUpdateGroupName?: (group: TodoGroup, newName: string) => void;
-    onDragStart: (task: TodoItem) => void;
+    onUpdateGroupName?: (group: TaskGroup, newName: string) => void;
+    onDragStart: (task: TaskItem) => void;
     onDragEnd: () => void;
     onDrop: (groupId: string | null) => void;
-    onDragOverTodo: (todoId: string, position: 'before' | 'after') => void;
-    onDragLeaveTodo: () => void;
-    onDropOnTodo: (task: TodoItem, position: 'before' | 'after') => void;
+    onDragOverTask: (taskId: string, position: 'before' | 'after') => void;
+    onDragLeaveTask: () => void;
+    onDropOnTask: (task: TaskItem, position: 'before' | 'after') => void;
     isDragging: boolean;
-    dragOverTodoId: string | null;
+    dragOverTaskId: string | null;
     dragOverPosition: 'before' | 'after' | null;
-    onDragStartGroup: (group: TodoGroup) => void;
+    onDragStartGroup: (group: TaskGroup) => void;
     onDragEndGroup: () => void;
     onDragOverGroup: (groupId: string, position: 'before' | 'after') => void;
     onDragLeaveGroup: () => void;
-    onDropOnGroup: (group: TodoGroup, position: 'before' | 'after') => void;
+    onDropOnGroup: (group: TaskGroup, position: 'before' | 'after') => void;
     isDraggingGroup: boolean;
     isDropTargetGroup: boolean;
     dropPositionGroup: 'before' | 'after' | null;
     theme: any;
-}> = ({ title, groupId, group, tasks, channelMembers, onToggle, onDelete, onToggleAssignee, onUpdateText, onDeleteGroup, onUpdateGroupName, onDragStart, onDragEnd, onDrop, onDragOverTodo, onDragLeaveTodo, onDropOnTodo, isDragging, dragOverTodoId, dragOverPosition, onDragStartGroup, onDragEndGroup, onDragOverGroup, onDragLeaveGroup, onDropOnGroup, isDraggingGroup, isDropTargetGroup, dropPositionGroup, theme }) => {
+}> = ({ title, groupId, group, tasks, channelMembers, onToggle, onDelete, onToggleAssignee, onUpdateText, onDeleteGroup, onUpdateGroupName, onDragStart, onDragEnd, onDrop, onDragOverTask, onDragLeaveTask, onDropOnTask, isDragging, dragOverTaskId, dragOverPosition, onDragStartGroup, onDragEndGroup, onDragOverGroup, onDragLeaveGroup, onDropOnGroup, isDraggingGroup, isDropTargetGroup, dropPositionGroup, theme }) => {
     const [isDragOver, setIsDragOver] = React.useState(false);
     const [isDraggingThis, setIsDraggingThis] = React.useState(false);
     const [isEditingName, setIsEditingName] = React.useState(false);
@@ -1762,7 +1762,7 @@ const TodoGroupSection: React.FC<{
                 )}
 
                 {tasks.map(task => (
-                    <TodoItemComponent
+                    <TaskItemComponent
                         key={task.id}
                         task={task}
                         channelMembers={channelMembers}
@@ -1772,12 +1772,12 @@ const TodoGroupSection: React.FC<{
                         onUpdateText={onUpdateText}
                         onDragStart={onDragStart}
                         onDragEnd={onDragEnd}
-                        onDragOverTodo={onDragOverTodo}
-                        onDragLeaveTodo={onDragLeaveTodo}
-                        onDropOnTodo={onDropOnTodo}
+                        onDragOverTask={onDragOverTask}
+                        onDragLeaveTask={onDragLeaveTask}
+                        onDropOnTask={onDropOnTask}
                         isDraggingItem={isDragging}
-                        isDropTarget={dragOverTodoId === task.id}
-                        dropPosition={dragOverTodoId === task.id ? dragOverPosition : null}
+                        isDropTarget={dragOverTaskId === task.id}
+                        dropPosition={dragOverTaskId === task.id ? dragOverPosition : null}
                         theme={theme}
                     />
                 ))}
@@ -1800,23 +1800,23 @@ const TodoGroupSection: React.FC<{
 };
 
 // Individual Task Item Component
-const TodoItemComponent: React.FC<{
-    task: TodoItem;
+const TaskItemComponent: React.FC<{
+    task: TaskItem;
     channelMembers: any[];
-    onToggle: (task: TodoItem) => void;
-    onDelete: (todoId: string) => void;
-    onToggleAssignee: (task: TodoItem, userId: string) => void;
-    onUpdateText: (task: TodoItem, newText: string) => void;
-    onDragStart: (task: TodoItem) => void;
+    onToggle: (task: TaskItem) => void;
+    onDelete: (taskId: string) => void;
+    onToggleAssignee: (task: TaskItem, userId: string) => void;
+    onUpdateText: (task: TaskItem, newText: string) => void;
+    onDragStart: (task: TaskItem) => void;
     onDragEnd: () => void;
-    onDragOverTodo: (todoId: string, position: 'before' | 'after') => void;
-    onDragLeaveTodo: () => void;
-    onDropOnTodo: (task: TodoItem, position: 'before' | 'after') => void;
+    onDragOverTask: (taskId: string, position: 'before' | 'after') => void;
+    onDragLeaveTask: () => void;
+    onDropOnTask: (task: TaskItem, position: 'before' | 'after') => void;
     isDraggingItem: boolean;
     isDropTarget: boolean;
     dropPosition: 'before' | 'after' | null;
     theme: any;
-}> = ({ task, channelMembers, onToggle, onDelete, onToggleAssignee, onUpdateText, onDragStart, onDragEnd, onDragOverTodo, onDragLeaveTodo, onDropOnTodo, isDraggingItem, isDropTarget, dropPosition, theme }) => {
+}> = ({ task, channelMembers, onToggle, onDelete, onToggleAssignee, onUpdateText, onDragStart, onDragEnd, onDragOverTask, onDragLeaveTask, onDropOnTask, isDraggingItem, isDropTarget, dropPosition, theme }) => {
     const [isDragging, setIsDragging] = React.useState(false);
     const [showAssigneePopup, setShowAssigneePopup] = React.useState(false);
     const [isEditing, setIsEditing] = React.useState(false);
@@ -1911,7 +1911,7 @@ const TodoItemComponent: React.FC<{
         const mouseY = e.clientY;
 
         const position = mouseY < midpoint ? 'before' : 'after';
-        onDragOverTodo(task.id, position);
+        onDragOverTask(task.id, position);
     };
 
     const handleItemDragLeave = (e: React.DragEvent) => {
@@ -1919,7 +1919,7 @@ const TodoItemComponent: React.FC<{
         const relatedTarget = e.relatedTarget as HTMLElement;
 
         if (!relatedTarget || !target.contains(relatedTarget)) {
-            onDragLeaveTodo();
+            onDragLeaveTask();
         }
     };
 
@@ -1929,7 +1929,7 @@ const TodoItemComponent: React.FC<{
 
         if (!dropPosition) return;
 
-        onDropOnTodo(task, dropPosition);
+        onDropOnTask(task, dropPosition);
     };
 
     const handleTextClick = () => {
@@ -2256,4 +2256,4 @@ const TodoItemComponent: React.FC<{
     );
 };
 
-(window as any).registerPlugin('com.mattermost.channel-todo', new Plugin());
+(window as any).registerPlugin('com.mattermost.channel-task', new Plugin());

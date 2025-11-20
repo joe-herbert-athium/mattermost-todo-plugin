@@ -1,7 +1,8 @@
 {
-  "id": "com.mattermost.channel-todo",
-  "name": "Channel Todo List",
-  "description": "Adds a todo list for each channel",
+  "id": "com.mattermost.channel-task",
+  "name": "Channel Task List",
+  "author": "Joe Herbert",
+  "description": "Adds a task list for each channel",
   "version": "1.0.0",
   "min_server_version": "5.20.0",
   "server": {
@@ -14,7 +15,7 @@
     "bundle_path": "webapp/dist/main.js"
   },
   "settings_schema": {
-    "header": "Channel Todo List Settings",
+    "header": "Channel Task List Settings",
     "settings": []
   }
 }

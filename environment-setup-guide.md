@@ -1,6 +1,6 @@
 # Mattermost Test Environment Setup Guide
 
-This guide will walk you through setting up a local Mattermost server and testing the Todo plugin.
+This guide will walk you through setting up a local Mattermost server and testing the Task plugin.
 
 ## Option 1: Docker Setup (Recommended - Easiest)
 
@@ -14,8 +14,8 @@ This guide will walk you through setting up a local Mattermost server and testin
 
 1. Create a project directory:
 ```bash
-mkdir mattermost-todo-test
-cd mattermost-todo-test
+mkdir mattermost-task-test
+cd mattermost-task-test
 ```
 
 2. Create a `docker-compose.yml` file:
@@ -154,16 +154,16 @@ http://localhost:8065
 
 1. Create plugin directory structure:
 ```bash
-mkdir -p mattermost-channel-todo/{server,webapp}
-cd mattermost-channel-todo
+mkdir -p mattermost-channel-task/{server,webapp}
+cd mattermost-channel-task
 ```
 
 2. Create `plugin.json` in the root:
 ```json
 {
-  "id": "com.mattermost.channel-todo",
-  "name": "Channel Todo List",
-  "description": "Adds a todo list for each channel",
+  "id": "com.mattermost.channel-task",
+  "name": "Channel Task List",
+  "description": "Adds a task list for each channel",
   "version": "1.0.0",
   "min_server_version": "5.20.0",
   "server": {
@@ -176,7 +176,7 @@ cd mattermost-channel-todo
     "bundle_path": "webapp/dist/main.js"
   },
   "settings_schema": {
-    "header": "Channel Todo List Settings",
+    "header": "Channel Task List Settings",
     "settings": []
   }
 }
@@ -202,7 +202,7 @@ type Plugin struct {
 	configurationLock sync.RWMutex
 }
 
-type TodoItem struct {
+type TaskItem struct {
 	ID          string    `json:"id"`
 	Text        string    `json:"text"`
 	Completed   bool      `json:"completed"`
@@ -212,14 +212,14 @@ type TodoItem struct {
 	CompletedAt time.Time `json:"completed_at,omitempty"`
 }
 
-type TodoGroup struct {
+type TaskGroup struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
-type ChannelTodoList struct {
-	Items  []TodoItem  `json:"items"`
-	Groups []TodoGroup `json:"groups"`
+type ChannelTaskList struct {
+	Items  []TaskItem  `json:"items"`
+	Groups []TaskGroup `json:"groups"`
 }
 
 func (p *Plugin) ServeHTTP(c *plugin.Context, w http.ResponseWriter, r *http.Request) {
@@ -233,8 +233,8 @@ func (p *Plugin) ServeHTTP(c *plugin.Context, w http.ResponseWriter, r *http.Req
 	}
 
 	switch r.URL.Path {
-	case "/api/v1/todos":
-		p.handleTodos(w, r)
+	case "/api/v1/tasks":
+		p.handleTasks(w, r)
 	case "/api/v1/groups":
 		p.handleGroups(w, r)
 	default:
@@ -242,7 +242,7 @@ func (p *Plugin) ServeHTTP(c *plugin.Context, w http.ResponseWriter, r *http.Req
 	}
 }
 
-func (p *Plugin) handleTodos(w http.ResponseWriter, r *http.Request) {
+func (p *Plugin) handleTasks(w http.ResponseWriter, r *http.Request) {
 	channelID := r.URL.Query().Get("channel_id")
 	if channelID == "" {
 		http.Error(w, "channel_id required", http.StatusBadRequest)
@@ -251,13 +251,13 @@ func (p *Plugin) handleTodos(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		p.getTodos(w, r, channelID)
+		p.getTasks(w, r, channelID)
 	case http.MethodPost:
-		p.createTodo(w, r, channelID)
+		p.createTask(w, r, channelID)
 	case http.MethodPut:
-		p.updateTodo(w, r, channelID)
+		p.updateTask(w, r, channelID)
 	case http.MethodDelete:
-		p.deleteTodo(w, r, channelID)
+		p.deleteTask(w, r, channelID)
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -280,14 +280,14 @@ func (p *Plugin) handleGroups(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (p *Plugin) getTodos(w http.ResponseWriter, r *http.Request, channelID string) {
-	list := p.getChannelTodoList(channelID)
+func (p *Plugin) getTasks(w http.ResponseWriter, r *http.Request, channelID string) {
+	list := p.getChannelTaskList(channelID)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(list)
 }
 
-func (p *Plugin) createTodo(w http.ResponseWriter, r *http.Request, channelID string) {
-	var item TodoItem
+func (p *Plugin) createTask(w http.ResponseWriter, r *http.Request, channelID string) {
+	var item TaskItem
 	if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -296,60 +296,60 @@ func (p *Plugin) createTodo(w http.ResponseWriter, r *http.Request, channelID st
 	item.ID = model.NewId()
 	item.CreatedAt = time.Now()
 
-	list := p.getChannelTodoList(channelID)
+	list := p.getChannelTaskList(channelID)
 	list.Items = append(list.Items, item)
-	p.saveChannelTodoList(channelID, list)
+	p.saveChannelTaskList(channelID, list)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(item)
 }
 
-func (p *Plugin) updateTodo(w http.ResponseWriter, r *http.Request, channelID string) {
-	var updated TodoItem
+func (p *Plugin) updateTask(w http.ResponseWriter, r *http.Request, channelID string) {
+	var updated TaskItem
 	if err := json.NewDecoder(r.Body).Decode(&updated); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	list := p.getChannelTodoList(channelID)
+	list := p.getChannelTaskList(channelID)
 	for i, item := range list.Items {
 		if item.ID == updated.ID {
 			if updated.Completed && !item.Completed {
 				updated.CompletedAt = time.Now()
 			}
 			list.Items[i] = updated
-			p.saveChannelTodoList(channelID, list)
+			p.saveChannelTaskList(channelID, list)
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(updated)
 			return
 		}
 	}
 
-	http.Error(w, "Todo not found", http.StatusNotFound)
+	http.Error(w, "Task not found", http.StatusNotFound)
 }
 
-func (p *Plugin) deleteTodo(w http.ResponseWriter, r *http.Request, channelID string) {
-	todoID := r.URL.Query().Get("id")
-	if todoID == "" {
+func (p *Plugin) deleteTask(w http.ResponseWriter, r *http.Request, channelID string) {
+	taskID := r.URL.Query().Get("id")
+	if taskID == "" {
 		http.Error(w, "id required", http.StatusBadRequest)
 		return
 	}
 
-	list := p.getChannelTodoList(channelID)
+	list := p.getChannelTaskList(channelID)
 	for i, item := range list.Items {
-		if item.ID == todoID {
+		if item.ID == taskID {
 			list.Items = append(list.Items[:i], list.Items[i+1:]...)
-			p.saveChannelTodoList(channelID, list)
+			p.saveChannelTaskList(channelID, list)
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 	}
 
-	http.Error(w, "Todo not found", http.StatusNotFound)
+	http.Error(w, "Task not found", http.StatusNotFound)
 }
 
 func (p *Plugin) createGroup(w http.ResponseWriter, r *http.Request, channelID string) {
-	var group TodoGroup
+	var group TaskGroup
 	if err := json.NewDecoder(r.Body).Decode(&group); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -357,9 +357,9 @@ func (p *Plugin) createGroup(w http.ResponseWriter, r *http.Request, channelID s
 
 	group.ID = model.NewId()
 
-	list := p.getChannelTodoList(channelID)
+	list := p.getChannelTaskList(channelID)
 	list.Groups = append(list.Groups, group)
-	p.saveChannelTodoList(channelID, list)
+	p.saveChannelTaskList(channelID, list)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(group)
@@ -372,7 +372,7 @@ func (p *Plugin) deleteGroup(w http.ResponseWriter, r *http.Request, channelID s
 		return
 	}
 
-	list := p.getChannelTodoList(channelID)
+	list := p.getChannelTaskList(channelID)
 	for i, group := range list.Groups {
 		if group.ID == groupID {
 			list.Groups = append(list.Groups[:i], list.Groups[i+1:]...)
@@ -381,7 +381,7 @@ func (p *Plugin) deleteGroup(w http.ResponseWriter, r *http.Request, channelID s
 					list.Items[j].GroupID = ""
 				}
 			}
-			p.saveChannelTodoList(channelID, list)
+			p.saveChannelTaskList(channelID, list)
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
@@ -390,29 +390,29 @@ func (p *Plugin) deleteGroup(w http.ResponseWriter, r *http.Request, channelID s
 	http.Error(w, "Group not found", http.StatusNotFound)
 }
 
-func (p *Plugin) getChannelTodoList(channelID string) *ChannelTodoList {
-	key := fmt.Sprintf("todos_%s", channelID)
+func (p *Plugin) getChannelTaskList(channelID string) *ChannelTaskList {
+	key := fmt.Sprintf("tasks_%s", channelID)
 	data, err := p.API.KVGet(key)
 	if err != nil || data == nil {
-		return &ChannelTodoList{
-			Items:  []TodoItem{},
-			Groups: []TodoGroup{},
+		return &ChannelTaskList{
+			Items:  []TaskItem{},
+			Groups: []TaskGroup{},
 		}
 	}
 
-	var list ChannelTodoList
+	var list ChannelTaskList
 	if err := json.Unmarshal(data, &list); err != nil {
-		return &ChannelTodoList{
-			Items:  []TodoItem{},
-			Groups: []TodoGroup{},
+		return &ChannelTaskList{
+			Items:  []TaskItem{},
+			Groups: []TaskGroup{},
 		}
 	}
 
 	return &list
 }
 
-func (p *Plugin) saveChannelTodoList(channelID string, list *ChannelTodoList) error {
-	key := fmt.Sprintf("todos_%s", channelID)
+func (p *Plugin) saveChannelTaskList(channelID string, list *ChannelTaskList) error {
+	key := fmt.Sprintf("tasks_%s", channelID)
 	data, err := json.Marshal(list)
 	if err != nil {
 		return err
@@ -429,7 +429,7 @@ func main() {
 4. Initialize Go module in server directory:
 ```bash
 cd server
-go mod init github.com/yourusername/mattermost-channel-todo/server
+go mod init github.com/yourusername/mattermost-channel-task/server
 go get github.com/mattermost/mattermost-server/v6/model
 go get github.com/mattermost/mattermost-server/v6/plugin
 cd ..
@@ -437,7 +437,7 @@ cd ..
 
 5. Create Makefile in the root:
 ```makefile
-PLUGIN_ID = com.mattermost.channel-todo
+PLUGIN_ID = com.mattermost.channel-task
 PLUGIN_VERSION = 1.0.0
 
 # Detect architecture
@@ -491,7 +491,7 @@ clean:
 1. Create `webapp/package.json`:
 ```json
 {
-  "name": "mattermost-channel-todo-webapp",
+  "name": "mattermost-channel-task-webapp",
   "version": "1.0.0",
   "scripts": {
     "build": "webpack --mode=production",
@@ -565,19 +565,19 @@ module.exports = {
 ```typescript
 // Copy the full React component code here from the previous artifact
 // For brevity, I'm not repeating it, but you should copy the entire
-// TodoSidebar, TodoHeaderButton, and Plugin class from the webapp artifact
+// TaskSidebar, TaskHeaderButton, and Plugin class from the webapp artifact
 ```
 
 ### Step 4: Build and Install Plugin
 
 1. Build the plugin:
 ```bash
-# From the mattermost-channel-todo directory
+# From the mattermost-channel-task directory
 make clean
 make all
 ```
 
-2. The plugin bundle will be created at `dist/com.mattermost.channel-todo-1.0.0.tar.gz`
+2. The plugin bundle will be created at `dist/com.mattermost.channel-task-1.0.0.tar.gz`
 
 3. Install the plugin in Mattermost:
    - Go to http://localhost:8065
@@ -592,13 +592,13 @@ make all
 1. Go back to your team
 2. Navigate to any channel (e.g., "Town Square")
 3. Look for the checkmark icon in the channel header (next to the channel name)
-4. Click it to open the todo sidebar
+4. Click it to open the task sidebar
 5. Try:
-   - Adding a todo
+   - Adding a task
    - Creating a group
-   - Assigning a todo to yourself
-   - Checking off a todo
-   - Deleting a todo
+   - Assigning a task to yourself
+   - Checking off a task
+   - Deleting a task
 
 ## Option 2: Local Development Server Setup
 
@@ -650,7 +650,7 @@ docker-compose up -d
 - Verify `plugin.json` is valid JSON
 - Ensure minimum server version matches your Mattermost version
 
-### Todo list doesn't open
+### Task list doesn't open
 - Open browser console (F12) and check for JavaScript errors
 - Verify webapp bundle was built correctly
 - Check Network tab for failed API requests
@@ -661,13 +661,13 @@ Once you have the plugin working, you can:
 - Modify the UI styling
 - Add more features (due dates, priorities, etc.)
 - Implement notifications
-- Add slash commands for quick todo management
+- Add slash commands for quick task management
 
 ## Useful Commands
 
 ```bash
 # Rebuild and reinstall plugin quickly
-make clean && make all && docker cp dist/com.mattermost.channel-todo-1.0.0.tar.gz <container_id>:/tmp/
+make clean && make all && docker cp dist/com.mattermost.channel-task-1.0.0.tar.gz <container_id>:/tmp/
 
 # View Mattermost logs
 docker-compose logs -f mattermost
