@@ -64,6 +64,8 @@ export default class Plugin {
 
 // Sidebar Component (for RHS)
 class TodoSidebar extends React.Component<any> {
+    private channelCheckInterval: any = null;
+
     state = {
         todos: [] as TodoItem[],
         groups: [] as TodoGroup[],
@@ -75,6 +77,7 @@ class TodoSidebar extends React.Component<any> {
         draggedTodo: null as TodoItem | null,
         filterMyTasks: false,
         currentUserId: '',
+        _lastChannelId: '',
     };
 
     componentDidMount() {
@@ -82,14 +85,34 @@ class TodoSidebar extends React.Component<any> {
         this.loadCurrentUser();
         this.loadTodos();
         this.loadChannelMembers();
+
+        // Poll for channel changes every 500ms
+        this.channelCheckInterval = setInterval(() => {
+            const currentChannelId = this.getChannelId();
+            if (currentChannelId && currentChannelId !== this.state._lastChannelId) {
+                console.log('Channel changed from', this.state._lastChannelId, 'to', currentChannelId);
+                this.setState({ _lastChannelId: currentChannelId });
+                this.loadTodos();
+                this.loadChannelMembers();
+            }
+        }, 500);
+    }
+
+    componentWillUnmount() {
+        if (this.channelCheckInterval) {
+            clearInterval(this.channelCheckInterval);
+        }
     }
 
     componentDidUpdate(prevProps: any) {
-        console.log('TodoSidebar updated, props:', this.props);
+        // This is now primarily handled by the interval in componentDidMount
+        // but we keep this for immediate prop changes
         const prevChannelId = this.getChannelId(prevProps);
         const currentChannelId = this.getChannelId(this.props);
 
-        if (prevChannelId !== currentChannelId) {
+        if (prevChannelId && currentChannelId && prevChannelId !== currentChannelId) {
+            console.log('Channel changed via props from', prevChannelId, 'to', currentChannelId);
+            this.setState({ _lastChannelId: currentChannelId });
             this.loadTodos();
             this.loadChannelMembers();
         }
