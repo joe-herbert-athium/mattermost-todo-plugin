@@ -128,6 +128,7 @@ class TaskSidebar extends React.Component<any> {
         dragOverGroupPosition: null as 'before' | 'after' | null,
         filterMyTasks: false,
         filterCompletion: 'all' as 'all' | 'complete' | 'incomplete',
+        filterDeadline: 'all' as 'all' | 'today' | 'one-week' | 'overdue',
         currentUserId: '',
         deleteGroupWarningShown: false,
         groupToDelete: null as { id: string, name: string, taskCount: number } | null,
@@ -200,6 +201,7 @@ class TaskSidebar extends React.Component<any> {
                 this.setState({
                     filterMyTasks: filters.filterMyTasks ?? false,
                     filterCompletion: filters.filterCompletion ?? 'all',
+                    filterDeadline: filters.filterDeadline ?? 'all',
                     showFilters: filters.showFilters ?? false
                 });
             }
@@ -213,6 +215,7 @@ class TaskSidebar extends React.Component<any> {
             const filters = {
                 filterMyTasks: this.state.filterMyTasks,
                 filterCompletion: this.state.filterCompletion,
+                filterDeadline: this.state.filterDeadline,
                 showFilters: this.state.showFilters
             };
             localStorage.setItem('mattermost-task-filters', JSON.stringify(filters));
@@ -741,7 +744,7 @@ class TaskSidebar extends React.Component<any> {
     };
 
     groupedTasks = (groupId: string | null) => {
-        const { filterMyTasks, filterCompletion, currentUserId } = this.state;
+        const { filterMyTasks, filterCompletion, filterDeadline, currentUserId } = this.state;
 
         let filtered = this.state.tasks.filter(task => {
             if (groupId === null) {
@@ -763,6 +766,32 @@ class TaskSidebar extends React.Component<any> {
             filtered = filtered.filter(task => !task.completed);
         }
 
+        if (filterDeadline === 'today') {
+            filtered = filtered.filter(task => {
+                if (!task.deadline) return false;
+                const taskDate = new Date(task.deadline);
+                const now = new Date();
+                return taskDate.toDateString() === now.toDateString();
+            });
+        } else if (filterDeadline === 'one-week') {
+            filtered = filtered.filter(task => {
+                if (!task.deadline) return false;
+                const taskDate = new Date(task.deadline);
+                const now = new Date();
+                now.setHours(0, 0, 0);
+                const twoWeeksDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+                return taskDate <= twoWeeksDate && taskDate >= now;
+            });
+        } else if (filterDeadline === 'overdue') {
+            filtered = filtered.filter(task => {
+                if (!task.deadline) return false;
+                const taskDate = new Date(task.deadline);
+                const now = new Date();
+                now.setHours(0, 0, 0);
+                return taskDate < now;
+            });
+        }
+
         return filtered.sort((a, b) => {
             const aOrder = a.created_at || '';
             const bOrder = b.created_at || '';
@@ -779,7 +808,7 @@ class TaskSidebar extends React.Component<any> {
     };
 
     render() {
-        const { newTaskText, newGroupName, selectedGroup, newTaskDeadline, channelMembers, showGroupForm, showTaskForm, showFilters, draggedTask, filterMyTasks, filterCompletion, dragOverTaskId, dragOverPosition, draggedGroup, dragOverGroupId, dragOverGroupPosition, deleteGroupWarningShown, groupToDelete } = this.state;
+        const { newTaskText, newGroupName, selectedGroup, newTaskDeadline, channelMembers, showGroupForm, showTaskForm, showFilters, draggedTask, filterMyTasks, filterCompletion, filterDeadline, dragOverTaskId, dragOverPosition, draggedGroup, dragOverGroupId, dragOverGroupPosition, deleteGroupWarningShown, groupToDelete } = this.state;
 
         const theme = this.props.theme || {};
 
@@ -917,6 +946,7 @@ class TaskSidebar extends React.Component<any> {
                             </div>
 
                             <div style={{
+                                marginBottom: '12px',
                                 display: 'flex',
                                 gap: '0',
                                 border: `1px solid ${borderColor}`,
@@ -975,6 +1005,89 @@ class TaskSidebar extends React.Component<any> {
                                     }}
                                 >
                                     Incomplete
+                                </button>
+                            </div>
+
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 1fr',
+                                gridTemplateRows: '1fr 1fr',
+                                gap: '0',
+                                border: `1px solid ${borderColor}`,
+                                borderRadius: '4px',
+                                overflow: 'hidden'
+                            }}>
+                                <button
+                                    onClick={() => this.setState({ filterDeadline: 'all' }, () => this.saveFilterSettings())}
+                                    style={{
+                                        flex: 1,
+                                        padding: '8px 16px',
+                                        fontSize: '14px',
+                                        fontWeight: 500,
+                                        backgroundColor: filterDeadline === 'all' ? buttonBg : subtleBackground,
+                                        color: filterDeadline === 'all' ? buttonColor : centerChannelColor,
+                                        border: 'none',
+                                        borderRight: `1px solid ${borderColor}`,
+                                        borderBottom: `1px solid ${borderColor}`,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        userSelect: 'none'
+                                    }}
+                                >
+                                    All
+                                </button>
+                                <button
+                                    onClick={() => this.setState({ filterDeadline: 'today' }, () => this.saveFilterSettings())}
+                                    style={{
+                                        flex: 1,
+                                        padding: '8px 16px',
+                                        fontSize: '14px',
+                                        fontWeight: 500,
+                                        backgroundColor: filterDeadline === 'today' ? buttonBg : subtleBackground,
+                                        color: filterDeadline === 'today' ? buttonColor : centerChannelColor,
+                                        border: 'none',
+                                        borderBottom: `1px solid ${borderColor}`,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        userSelect: 'none'
+                                    }}
+                                >
+                                    Due Today
+                                </button>
+                                <button
+                                    onClick={() => this.setState({ filterDeadline: 'one-week' }, () => this.saveFilterSettings())}
+                                    style={{
+                                        flex: 1,
+                                        padding: '8px 16px',
+                                        fontSize: '14px',
+                                        fontWeight: 500,
+                                        backgroundColor: filterDeadline === 'one-week' ? buttonBg : subtleBackground,
+                                        color: filterDeadline === 'one-week' ? buttonColor : centerChannelColor,
+                                        border: 'none',
+                                        borderRight: `1px solid ${borderColor}`,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        userSelect: 'none'
+                                    }}
+                                >
+                                    Due Within 1 Week
+                                </button>
+                                <button
+                                    onClick={() => this.setState({ filterDeadline: 'overdue' }, () => this.saveFilterSettings())}
+                                    style={{
+                                        flex: 1,
+                                        padding: '8px 16px',
+                                        fontSize: '14px',
+                                        fontWeight: 500,
+                                        backgroundColor: filterDeadline === 'overdue' ? buttonBg : subtleBackground,
+                                        color: filterDeadline === 'overdue' ? buttonColor : centerChannelColor,
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        userSelect: 'none'
+                                    }}
+                                >
+                                    Overdue
                                 </button>
                             </div>
                         </div>
@@ -1589,6 +1702,7 @@ const TaskGroupSection: React.FC<{
                         minHeight: '60px',
                         borderRadius: '8px',
                         padding: '8px',
+                        paddingBottom: '4px',
                         border: isDraggingThis ? `2px dashed ${buttonBg}` : '2px solid transparent',
                         opacity: isDraggingThis ? 0.4 : groupOpacity,
                         position: 'relative',
@@ -1659,6 +1773,7 @@ const TaskGroupSection: React.FC<{
                                 style={{
                                     padding: '4px',
                                     fontSize: '20px',
+                                    lineHeight: '18px',
                                     color: errorTextColor,
                                     backgroundColor: 'transparent',
                                     border: 'none',
@@ -1726,6 +1841,7 @@ const TaskGroupSection: React.FC<{
                     border: isDraggingThis ? `2px dashed ${buttonBg}` : (isDragOver ? `2px dashed ${buttonBg}` : (showDropZone ? `2px dashed ${borderColor}` : 'none')),
                     borderRadius: '8px',
                     padding: '8px',
+                    paddingBottom: '4px',
                     transition: 'all 0.2s ease',
                     position: 'relative',
                     opacity: isDraggingThis ? 0.4 : groupOpacity,
@@ -1736,7 +1852,7 @@ const TaskGroupSection: React.FC<{
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    marginBottom: tasks.length > 0 ? '12px' : '0'
+                    marginBottom: tasks.length > 0 ? '4px' : '0'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
                         {isEditingName ? (
@@ -1796,6 +1912,7 @@ const TaskGroupSection: React.FC<{
                             style={{
                                 padding: '4px',
                                 fontSize: '20px',
+                                lineHeight: '18px',
                                 color: errorTextColor,
                                 backgroundColor: 'transparent',
                                 border: 'none',
